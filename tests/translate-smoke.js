@@ -16,6 +16,7 @@ const { chromium } = require('playwright');
     const sample = async () => ({});
     // 첫 번역은 일부러 길게, 줄이기 요청에는 짧게 답한다
     sample.json = async prompt => {
+      if (window.__failOnce) { window.__failOnce = false; throw { code: 'rate_limited' }; }
       const items = JSON.parse(prompt.slice(prompt.lastIndexOf('입력:\n') + 4));
       const shorten = prompt.includes('들어가기엔 길다');
       (window.__calls = window.__calls || []).push(shorten ? 'shorten' : 'translate');
@@ -51,6 +52,19 @@ const { chromium } = require('playwright');
     return [await count(a), await count(b)];
   }, [fs.readFileSync(source).toString('base64'), fs.readFileSync(out).toString('base64')]);
   assert(pages[0] > 0 && pages[0] === pages[1], `쪽수가 원본과 같아야 한다: ${pages}`);
+  if (!process.argv[2]) {
+    // 수식 견본: 첨자는 V_{G} 표기로 한 문단에 묶이고, 수식 글꼴로 쓴 식은 보내지 않는다. 첫 요청이 실패해도 기다렸다가 끝까지 번역한다
+    await page.evaluate(() => { window.__en = []; window.__failOnce = true; PdfTranslate.config.retryWaits = [0, 200, 200]; PdfTranslate.config.minGapMs = 0; });
+    await page.getByLabel('번역할 영어 PDF').setInputFiles(path.join(__dirname, 'fixtures', 'en-math.pdf'));
+    await run.click();
+    await page.getByRole('button', { name: '한국어 PDF 받기' }).waitFor({ timeout: 60000 });
+    const math = await page.evaluate(() => window.__en);
+    assert(math.includes('See accumulation, depletion, and inversion as V_{G} changes'), '첨자를 살려 한 문단으로 묶는다: ' + JSON.stringify(math));
+    assert(math.some(t => /^The oxide blocks current: the transferred charge .* \(ionized acceptors\)$/.test(t)), '글머리표 내어쓰기 문단을 한 문단으로 묶는다');
+    assert(!math.some(t => /E_\{Fm\}|t_\{ox\} = 30|^p-Si$/.test(t)), '수식·단위·기호만 있는 줄은 번역 대상이 아니다');
+    assert(math.includes('huge electron density: cannot be depleted') && math.includes('x_{d}: depletion width'), '그림 라벨도 번역한다');
+    assert.strictEqual(await page.evaluate(() => window.__failOnce), false, '실패한 요청을 다시 보냈다');
+  }
   assert.strictEqual(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth), true);
   assert.deepStrictEqual(errors, []);
   await browser.close();

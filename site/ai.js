@@ -403,7 +403,7 @@ ${JSON.stringify(compact)}`;
   const MSG = {
     not_granted: 'AI 사용을 허용하지 않아서 실행할 수 없어요. 페이지를 새로고침하면 다시 물어봐요.',
     sampling_disabled: '이 계정에서는 AI 기능을 쓸 수 없어요.',
-    rate_limited: '요청이 많거나 Claude 사용량 한도에 도달했어요. 잠시 뒤에 다시 시도해 주세요.',
+    rate_limited: '요청이 많거나 AI 사용량 한도에 도달했어요. 1분쯤 뒤에 다시 시도하고, 계속되면 그 공급자의 무료 한도를 확인해 주세요.',
     prompt_too_large: '자료가 너무 길어요. 파일을 나눠서 올려 주세요.',
     invalid_json: 'AI 답변 형식이 깨졌어요. 다시 시도해 주세요.',
     refused: 'AI가 이 요청을 처리하지 않았어요. 자료 내용을 확인해 주세요.',
