@@ -1,0 +1,6 @@
+dist/
+screenshots/
+node_modules/
+.env
+.env.*
+*.zip

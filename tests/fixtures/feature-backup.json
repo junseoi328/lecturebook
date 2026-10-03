@@ -1,0 +1,19 @@
+{
+  "courses": [{ "id": "demo", "name": "운영체제", "updated": 1790856000000 }],
+  "course:demo": {
+    "id": "demo", "name": "운영체제", "lectures": ["lec1", "lec2"], "jokbos": [],
+    "reviewed": { "lec1": true },
+    "exam": { "counts": { "객관식": 5, "단답형": 3, "서술형": 2, "계산": 0 }, "choices": 4, "difficulty": "실제 시험 수준", "style": "", "scope": null },
+    "exams": [{ "id": "exam1", "title": "중간고사", "kind": "시험", "date": "2099-10-20", "time": "09:00", "scope": ["lec1", "lec2"] }],
+    "summarize": { "detail": "basic", "custom": "", "autoPdf": false }, "created": 1790856000000
+  },
+  "item:lec1": {
+    "id": "lec1", "type": "lecture", "courseId": "demo", "fileName": "프로세스.pdf", "pages": [{ "n": 1, "text": "프로세스와 스레드" }],
+    "summary": { "title": "프로세스와 스레드", "overview": "실행 단위를 구분한다.", "sections": [], "terms": [{ "term": "Process", "definition": "실행 중인 프로그램", "pages": [1] }, { "term": "Thread", "definition": "프로세스 안의 실행 흐름", "pages": [1] }], "formulas": [], "examPoints": [] }
+  },
+  "item:lec2": {
+    "id": "lec2", "type": "lecture", "courseId": "demo", "fileName": "동기화.pdf", "pages": [{ "n": 1, "text": "임계구역과 뮤텍스" }],
+    "summary": { "title": "동기화", "overview": "경쟁 조건을 막는다.", "sections": [], "terms": [{ "term": "Mutex", "definition": "공유 자원 접근을 한 번에 하나로 제한하는 잠금", "pages": [2] }, { "term": "Semaphore", "definition": "정수 값으로 접근 가능한 작업 수를 조절하는 동기화 도구", "pages": [3] }], "formulas": [], "examPoints": [] }
+  },
+  "attempts:demo": { "answered": 6, "correct": 4, "wrong": [{ "q": { "type": "단답형", "question": "교착상태의 네 조건은?", "answer": "상호 배제, 점유 대기, 비선점, 순환 대기", "rubric": [], "sourceLectures": [1] }, "at": 1790856000000, "tries": 1 }] }
+}
