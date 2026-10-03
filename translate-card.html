@@ -1,0 +1,219 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>번역 PPT 만들기 — 렉처북</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
+<script src="pptx-translate.js"></script>
+<style>
+/* ── 데모 페이지용 (앱에 붙일 때는 필요 없음) ── */
+body { margin: 0; padding: 40px 20px; background: #f4f3ef;
+       font-family: "Pretendard", "Noto Sans KR", "Malgun Gothic", system-ui, sans-serif; }
+.demo-wrap { max-width: 680px; margin: 0 auto; }
+
+/* ── 여기부터 카드 스타일: 앱 CSS로 복사 ── */
+.tr-card {
+  --tr-ink: #1d2033; --tr-muted: #6b6f80; --tr-line: #e7e5e0;
+  --tr-accent: #4047d6; --tr-accent-soft: #e6e5f6; --tr-dot: #e8694a; --tr-warn: #9a5b00;
+  background: #fff; border: 1px solid var(--tr-line); border-radius: 28px;
+  padding: 32px; color: var(--tr-ink); box-sizing: border-box;
+}
+.tr-card *, .tr-card *::before { box-sizing: border-box; }
+.tr-title { display: flex; align-items: center; gap: 10px; margin: 0; font-size: 20px; font-weight: 700; }
+.tr-title::before { content: ""; width: 8px; height: 8px; border-radius: 50%; background: var(--tr-dot); }
+.tr-lead { margin: 8px 0 20px; color: var(--tr-muted); font-size: 15px; line-height: 1.6; }
+
+.tr-drop {
+  display: flex; flex-direction: column; align-items: center; gap: 10px;
+  padding: 28px 16px; border: 1.5px dashed #b9b8e3; border-radius: 18px;
+  text-align: center; cursor: pointer; transition: background .15s, border-color .15s;
+}
+.tr-drop:hover, .tr-drop.is-over { background: #f6f6fd; border-color: var(--tr-accent); }
+.tr-drop:focus-within { outline: 3px solid var(--tr-accent-soft); outline-offset: 2px; border-color: var(--tr-accent); }
+.tr-drop input { position: absolute; width: 1px; height: 1px; opacity: 0; }
+.tr-plus { width: 48px; height: 48px; border-radius: 12px; background: var(--tr-accent); color: #fff;
+           display: grid; place-items: center; font-size: 24px; line-height: 1; }
+.tr-drop-name { font-size: 18px; font-weight: 700; word-break: break-all; }
+.tr-drop-hint { font-size: 14px; color: var(--tr-muted); }
+
+.tr-opts { display: grid; gap: 10px; margin: 20px 0; }
+.tr-opt { display: flex; align-items: flex-start; gap: 10px; font-size: 15px; line-height: 1.5; cursor: pointer; }
+.tr-opt input { width: 18px; height: 18px; margin: 2px 0 0; accent-color: var(--tr-accent); flex: none; }
+.tr-opt small { display: block; color: var(--tr-muted); font-size: 13px; }
+
+.tr-key { display: grid; gap: 6px; margin-bottom: 20px; font-size: 14px; color: var(--tr-muted); }
+.tr-key input { height: 44px; padding: 0 14px; border: 1px solid var(--tr-line); border-radius: 12px; font: inherit; color: var(--tr-ink); }
+.tr-key input:focus-visible { outline: 3px solid var(--tr-accent-soft); border-color: var(--tr-accent); }
+
+.tr-btn {
+  width: 100%; height: 48px; border: 0; border-radius: 12px; background: var(--tr-accent); color: #fff;
+  font: inherit; font-size: 16px; font-weight: 700; cursor: pointer;
+}
+.tr-btn:hover { background: #343bc4; }
+.tr-btn:focus-visible { outline: 3px solid var(--tr-accent-soft); outline-offset: 2px; }
+.tr-btn:disabled { background: #c9cae6; cursor: not-allowed; }
+.tr-btn.is-ghost { background: #fff; color: var(--tr-accent); border: 1.5px solid var(--tr-accent); margin-top: 10px; }
+.tr-btn.is-ghost:hover { background: #f6f6fd; }
+
+.tr-status { margin-top: 18px; font-size: 14px; color: var(--tr-muted); }
+.tr-status[hidden], .tr-result[hidden], .tr-bar[hidden] { display: none; }
+.tr-status.is-error { color: #b3261e; }
+.tr-bar { height: 6px; margin-top: 8px; border-radius: 3px; background: var(--tr-accent-soft); overflow: hidden; }
+.tr-bar i { display: block; height: 100%; width: 0; background: var(--tr-accent); transition: width .25s; }
+@media (prefers-reduced-motion: reduce) { .tr-bar i, .tr-drop { transition: none; } }
+
+.tr-result { margin-top: 18px; padding: 18px 20px; border-radius: 16px; background: #f6f6fd; }
+.tr-result h3 { margin: 0 0 8px; font-size: 16px; }
+.tr-result ul { margin: 0 0 14px; padding-left: 18px; font-size: 14px; line-height: 1.7; color: #3d4157; }
+.tr-result li.is-warn { color: var(--tr-warn); font-weight: 600; }
+@media (max-width: 480px) { .tr-card { padding: 22px; border-radius: 22px; } }
+</style>
+</head>
+<body>
+<div class="demo-wrap">
+
+<!-- ── 여기부터 카드 마크업: "자료 정리" 카드 옆이나 아래에 붙이기 ── -->
+<section class="tr-card" id="trCard" aria-labelledby="trTitle">
+  <h2 class="tr-title" id="trTitle">번역 PPT 만들기</h2>
+  <p class="tr-lead">영어 수업자료를 디자인은 그대로 두고 글자만 한국어로 바꿔요.</p>
+
+  <label class="tr-drop" id="trDrop">
+    <input type="file" id="trFile" accept=".pptx,application/vnd.openxmlformats-officedocument.presentationml.presentation">
+    <span class="tr-plus" aria-hidden="true">+</span>
+    <span class="tr-drop-name" id="trName">영어 PPT 추가</span>
+    <span class="tr-drop-hint" id="trHint">PPTX 파일을 끌어다 놓거나 눌러서 선택</span>
+  </label>
+
+  <div class="tr-opts">
+    <label class="tr-opt"><input type="checkbox" id="trShorten" checked>
+      <span>넘치면 문장 줄이기<small>번역이 글상자보다 길어지면 뜻은 남기고 표현을 줄여요.</small></span></label>
+    <label class="tr-opt"><input type="checkbox" id="trNotes">
+      <span>발표자 노트도 번역</span></label>
+  </div>
+
+  <!-- 데모용 키 입력칸. 앱의 "AI 설정"과 연결하면 이 블록은 지우세요. -->
+  <label class="tr-key" id="trKeyWrap">Gemini API 키
+    <input type="password" id="trKey" autocomplete="off" placeholder="AI 설정에 저장한 키">
+  </label>
+
+  <button class="tr-btn" id="trRun" disabled>한국어 PPT 만들기</button>
+
+  <div class="tr-status" id="trStatus" role="status" aria-live="polite" hidden></div>
+  <div class="tr-bar" id="trBar" hidden><i></i></div>
+
+  <div class="tr-result" id="trResult" hidden>
+    <h3 id="trResultTitle"></h3>
+    <ul id="trResultList"></ul>
+    <button class="tr-btn" id="trDownload">한국어 PPT 받기</button>
+    <button class="tr-btn is-ghost" id="trReset">다른 파일 번역하기</button>
+  </div>
+</section>
+<!-- ── 카드 마크업 끝 ── -->
+
+</div>
+<script>
+(function () {
+  const $ = (id) => document.getElementById(id);
+  const drop = $("trDrop"), fileInput = $("trFile"), runBtn = $("trRun");
+  const statusEl = $("trStatus"), bar = $("trBar"), result = $("trResult");
+  let file = null, output = null;
+
+  /* ★ 앱과 연결할 곳은 여기 하나.
+     앱에 이미 AI 호출 함수가 있으면 (prompt) => Promise<string> 형태로 돌려주면 됩니다. */
+  function getCallAI() {
+    const key = $("trKey").value.trim();
+    if (!key) throw new Error("Gemini API 키를 입력해 주세요.");
+    return PptxTranslate.geminiCaller(key);
+  }
+
+  function setFile(f) {
+    if (!f) return;
+    if (!/\.pptx$/i.test(f.name)) return showStatus("PPTX 파일만 번역할 수 있어요. PPT(구버전)는 PowerPoint에서 PPTX로 저장한 뒤 올려 주세요.", true);
+    file = f;
+    $("trName").textContent = f.name;
+    $("trHint").textContent = f.size < 1048576 ? Math.ceil(f.size / 1024) + " KB" : (f.size / 1048576).toFixed(1) + " MB";
+    runBtn.disabled = false;
+    result.hidden = true;
+    statusEl.hidden = true;
+  }
+
+  function showStatus(text, isError) {
+    statusEl.hidden = false;
+    statusEl.textContent = text;
+    statusEl.classList.toggle("is-error", !!isError);
+  }
+
+  const PHASE = { read: "파일 읽는 중", translate: "번역하는 중", shorten: "긴 문장 줄이는 중", write: "PPT에 써넣는 중" };
+  function onProgress(p) {
+    const base = { read: 0, translate: 5, shorten: 75, write: 92 }[p.phase];
+    const span = { read: 5, translate: 70, shorten: 17, write: 8 }[p.phase];
+    bar.firstElementChild.style.width = base + span * (p.total ? p.done / p.total : 0) + "%";
+    showStatus(p.phase === "translate" || p.phase === "shorten" ? `${PHASE[p.phase]} ${p.done}/${p.total}` : PHASE[p.phase]);
+  }
+
+  fileInput.addEventListener("change", () => setFile(fileInput.files[0]));
+  ["dragenter", "dragover"].forEach((t) => drop.addEventListener(t, (e) => { e.preventDefault(); drop.classList.add("is-over"); }));
+  ["dragleave", "drop"].forEach((t) => drop.addEventListener(t, (e) => { e.preventDefault(); drop.classList.remove("is-over"); }));
+  drop.addEventListener("drop", (e) => setFile(e.dataTransfer.files[0]));
+
+  runBtn.addEventListener("click", async () => {
+    if (!file) return;
+    runBtn.disabled = true;
+    result.hidden = true;
+    bar.hidden = false;
+    bar.firstElementChild.style.width = "0%";
+    try {
+      const { blob, report } = await PptxTranslate.translatePptx(file, {
+        callAI: getCallAI(),
+        shorten: $("trShorten").checked,
+        includeNotes: $("trNotes").checked,
+        onProgress,
+      });
+      output = { blob, name: file.name.replace(/\.pptx$/i, "") + "_ko.pptx" };
+
+      const items = [`슬라이드 ${report.slides}장에서 ${report.translated}곳을 한국어로 바꿨어요.`];
+      if (report.shortened) items.push(`글상자에 맞추려고 ${report.shortened}곳은 문장을 줄였어요.`);
+      if (report.shrunk.length) items.push(`그래도 넘치는 글상자 ${report.shrunk.length}개는 글자 크기를 줄였어요.`);
+      if (report.untranslated) items.push(`${report.untranslated}곳은 번역에 실패해 영어로 남겼어요.`);
+      const list = $("trResultList");
+      list.replaceChildren(...items.map((t) => Object.assign(document.createElement("li"), { textContent: t })));
+      if (report.checkSlides.length) {
+        list.append(Object.assign(document.createElement("li"), {
+          className: "is-warn",
+          textContent: `${report.checkSlides.join(", ")}번 슬라이드는 글자가 넘칠 수 있으니 열어서 확인해 주세요.`,
+        }));
+      }
+      $("trResultTitle").textContent = output.name;
+      statusEl.hidden = true;
+      result.hidden = false;
+    } catch (err) {
+      console.error(err);
+      showStatus(err.message || "번역 중 문제가 생겼어요. 다시 시도해 주세요.", true);
+    } finally {
+      bar.hidden = true;
+      runBtn.disabled = !file;
+    }
+  });
+
+  $("trDownload").addEventListener("click", () => {
+    if (!output) return;
+    const a = Object.assign(document.createElement("a"), { href: URL.createObjectURL(output.blob), download: output.name });
+    document.body.append(a);
+    a.click();
+    a.remove();
+    setTimeout(() => URL.revokeObjectURL(a.href), 1000);
+  });
+
+  $("trReset").addEventListener("click", () => {
+    file = output = null;
+    fileInput.value = "";
+    $("trName").textContent = "영어 PPT 추가";
+    $("trHint").textContent = "PPTX 파일을 끌어다 놓거나 눌러서 선택";
+    result.hidden = true;
+    runBtn.disabled = true;
+  });
+})();
+</script>
+</body>
+</html>
