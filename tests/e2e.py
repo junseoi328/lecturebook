@@ -6,7 +6,7 @@ from playwright.sync_api import sync_playwright
 ROOT = pathlib.Path(__file__).resolve().parent.parent
 FIX = ROOT / 'tests' / 'fixtures'
 SHOTS = pathlib.Path(sys.argv[sys.argv.index('--shots') + 1]) if '--shots' in sys.argv else None
-CSP = ("default-src 'none'; script-src 'unsafe-inline' https://cdnjs.cloudflare.com; style-src 'unsafe-inline' https://fonts.googleapis.com; "
+CSP = ("default-src 'none'; script-src 'self' 'unsafe-inline' https://cdnjs.cloudflare.com; style-src 'unsafe-inline' https://fonts.googleapis.com; "
        "font-src https://fonts.gstatic.com; img-src data: blob:; connect-src 'none'; worker-src 'none'")
 
 class H(http.server.SimpleHTTPRequestHandler):
@@ -76,12 +76,12 @@ with sync_playwright() as p:
     ctx = b.new_context(viewport={'width': 1280, 'height': 900}); ctx.add_init_script(MOCK)
     pg = ctx.new_page()
     pg.on('pageerror', lambda e: errors.append(str(e)))
-    pg.on('console', lambda m: m.type == 'error' and 'fonts.g' not in m.text and errors.append(m.text))
+    pg.on('console', lambda m: m.type == 'error' and 'fonts.g' not in m.text and 'worker-src' not in m.text and errors.append(m.text))
     pg.goto(URL); pg.wait_for_timeout(800); shot(pg, '01_home')
     check(pg.inner_text('.ai-pill') == 'AI 연결됨', 'AI 연결 표시')
-    check(pg.evaluate('!!window.pdfjsLib && !!window.jspdf && !!window.JSZip'), '보안 제한 아래 외부 도구(pdf.js, jsPDF, JSZip) 로드')
+    check(pg.evaluate('!window.pdfjsLib && !window.jspdf && !window.JSZip && !window.Book && !window.PptxTranslate'), '첫 화면에서는 무거운 도구를 불러오지 않음')
 
-    pg.fill('.newcourse input', '운영체제'); pg.click('text=과목 만들기'); pg.wait_for_timeout(300)
+    pg.fill('.newcourse input', '운영체제'); pg.click('button:has-text("과목 만들기")'); pg.wait_for_timeout(300)
     check('/c/' in pg.url, '과목 만들기')
 
     # 강의 3개: PDF(스캔 1쪽 포함), PPTX, DOCX
@@ -201,7 +201,7 @@ with sync_playwright() as p:
     # 저장 유지와 백업
     go(''); pg.reload(); pg.wait_for_timeout(600)
     check('강의 4개 · 족보 1개' in pg.inner_text('.course-head'), '새로고침 뒤에도 자료 유지 (IndexedDB)')
-    pg.click('button[aria-label="백업 저장"]'); pg.wait_for_timeout(600)
+    pg.click('.tools-menu summary'); pg.click('.tools-pop button:has-text("백업 저장")'); pg.wait_for_timeout(600)
     bk = pg.evaluate('window.__saved')[-1]
     data = json.loads(base64.b64decode(bk['b64']).decode())
     check(bk['filename'].endswith('.json') and len(data['courses']) == 1 and any(k.startswith('attempts:') for k in data), '백업 파일 저장 (풀이 기록 포함)')
@@ -211,8 +211,8 @@ with sync_playwright() as p:
     # AI 없는 환경: 보기만 가능
     ctx2 = b.new_context(viewport={'width': 390, 'height': 844}); pg2 = ctx2.new_page(); pg2.on('pageerror', lambda e: errors.append(str(e)))
     pg2.goto(URL); pg2.wait_for_timeout(11500)
-    check(pg2.inner_text('.ai-pill') == 'AI 꺼짐', 'AI가 없으면 꺼짐 표시')
-    pg2.fill('.newcourse input', '테스트'); pg2.click('text=과목 만들기'); pg2.wait_for_timeout(300)
+    check(pg2.inner_text('.ai-pill') == 'AI 미연결', 'AI가 없으면 미연결 표시')
+    pg2.fill('.newcourse input', '테스트'); pg2.click('button:has-text("과목 만들기")'); pg2.wait_for_timeout(300)
     for route in ['', '/lectures', '/exam', '/jokbo', '/quiz', '/book']:
         pg2.goto(pg2.url.split('#')[0] + '#' + pg2.url.split('#')[1].split('/')[0] + '/' + pg2.url.split('#')[1].split('/')[1] + '/' + pg2.url.split('#')[1].split('/')[2] + route); pg2.wait_for_timeout(250)
     over = pg2.evaluate('document.documentElement.scrollWidth > innerWidth + 1')

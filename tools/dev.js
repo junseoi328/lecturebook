@@ -26,7 +26,7 @@ async function start({ port = Number(process.env.LECTUREBOOK_PORT || 4173), watc
       request.on('close', () => clients.delete(response));
       return;
     }
-    const file = { '/': 'index.html', '/index.html': 'index.html', '/standalone.html': 'standalone.html', '/font.js': 'font.js' }[pathname];
+    const file = { '/': 'index.html', '/index.html': 'index.html', '/standalone.html': 'standalone.html', '/font.js': 'font.js', '/book.js': 'book.js', '/translate.js': 'translate.js' }[pathname];
     if (!file) { response.writeHead(404); response.end('Not found'); return; }
     const content = fs.readFileSync(path.join(output, file));
     response.writeHead(200, { 'Content-Type': file.endsWith('.js') ? 'text/javascript; charset=utf-8' : 'text/html; charset=utf-8', 'Cache-Control': 'no-store' });

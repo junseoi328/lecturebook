@@ -10,9 +10,9 @@ html = html.replace(/<script src="(?!https:)([^"]+)"><\/script>/g, (_, f) => {
 });
 fs.mkdirSync(path.join(__dirname, 'dist'), { recursive: true });
 fs.writeFileSync(path.join(__dirname, 'dist', 'index.html'), html);
-fs.copyFileSync(path.join(dir, 'font.js'), path.join(__dirname, 'dist', 'font.js'));
-const font = fs.readFileSync(path.join(dir, 'font.js'), 'utf8');
-const standalone = html.replace('</body>', `<script>\n${font}\n</script>\n</body>`);
+const LAZY = ['font.js', 'book.js', 'translate.js']; // site/assets.js가 필요할 때 불러오는 파일
+for (const f of LAZY) fs.copyFileSync(path.join(dir, f), path.join(__dirname, 'dist', f));
+const standalone = html.replace('</body>', LAZY.map(f => `<script>\n${fs.readFileSync(path.join(dir, f), 'utf8')}\n</script>`).join('\n') + '\n</body>');
 fs.writeFileSync(path.join(__dirname, 'dist', 'standalone.html'), standalone);
 console.log('dist/index.html', (Buffer.byteLength(html) / 1024).toFixed(0) + ' KB');
 console.log('dist/standalone.html', (Buffer.byteLength(standalone) / 1024 / 1024).toFixed(2) + ' MB');

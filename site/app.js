@@ -574,7 +574,7 @@
       ctl = new AbortController();
       let friendly = '';
       try {
-        await Assets.zip();
+        await Assets.translate();
         const { blob, report: r } = await PptxTranslate.translatePptx(file, {
           shorten: shorten.checked, includeNotes: notes.checked, signal: ctl.signal,
           callAI: p => AI.json(p, { task: 'summary', signal: ctl.signal }).then(JSON.stringify, e => { friendly = (e && e.friendly) || ''; throw e; }),

@@ -58,7 +58,7 @@ node tools/dev.js
 - **초기 실행본 89% 경량화:** 1.37MB에서 약 156KB로 축소. PDF·ZIP 도구와 1.22MB 한글 폰트는 실제 문서를 읽거나 PDF를 만들 때만 불러옴
 - **저장소 일괄 읽기:** 여러 강의·족보·백업·검색 자료를 IndexedDB 트랜잭션 한 번으로 읽어 대량 자료에서 지연을 줄임
 - **시스템 글꼴 우선:** 첫 화면의 원격 웹폰트 요청을 제거해 오프라인 시작과 첫 표시를 빠르게 함
-- **두 가지 배포본:** `dist/index.html`은 고성능 기본판(같은 폴더의 `font.js` 필요), `dist/standalone.html`은 전달이 쉬운 단일 파일판
+- **두 가지 배포본:** `dist/index.html`은 고성능 기본판(같은 폴더의 `font.js`·`book.js`·`translate.js` 필요), `dist/standalone.html`은 전달이 쉬운 단일 파일판
 
 ## v0.4 바뀐 점 (무료 AI 팀 + 새 UI)
 - **무료 AI 10인 팀:** 자료 해독, 도표 판독, 개념 추론, 구조 설계, 한국어 편집, 시험 포인트, 족보 분석, 문제 출제, 답안 채점, 근거 검수를 서로 다른 역할로 분리
@@ -105,7 +105,7 @@ node tools/dev.js
 
 ## 실행과 빌드
 - 개발: `node tools/dev.js` → 표시된 로컬 주소에서 자동 새로고침. AI 기능은 무료 공급자를 연결하거나 Claude 아티팩트에서 열면 켜진다.
-- 고성능 실행본: `node build.js` → `dist/index.html` + `dist/font.js`
+- 고성능 실행본: `node build.js` → `dist/index.html` + `dist/font.js`·`book.js`·`translate.js`
 - 단일 파일 실행본: `dist/standalone.html`
 - 폰트 다시 만들기: `python tools/make_font.py` (fontwork/NotoSansKR.ttf 필요)
 

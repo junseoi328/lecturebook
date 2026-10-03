@@ -13,7 +13,8 @@ const Assets = (() => {
     if (pending.has(src)) return pending.get(src);
     const task = new Promise((resolve, reject) => {
       const el = document.createElement('script');
-      el.src = src; el.async = true; el.crossOrigin = 'anonymous';
+      el.src = src; el.async = true;
+      if (!src.startsWith('file:')) el.crossOrigin = 'anonymous'; // dist/index.html을 파일로 바로 열면 CORS 모드 스크립트는 막힌다
       el.onload = () => ready() ? resolve() : reject(new Error('도구를 시작하지 못했어요.'));
       el.onerror = () => reject(new Error('문서 도구를 불러오지 못했어요. 인터넷 연결을 확인해 주세요.'));
       document.head.append(el);
@@ -26,14 +27,17 @@ const Assets = (() => {
     await script(CDN.pdf, () => !!window.pdfjsLib);
     window.pdfjsLib.GlobalWorkerOptions.workerSrc = CDN.pdfWorker;
   }
+  const local = (file, ready) => script(new URL(file, document.baseURI).href, ready);
   const zip = () => script(CDN.zip, () => !!window.JSZip);
   async function pdfExport() {
     await Promise.all([
       script(CDN.pdfExport, () => !!window.jspdf),
-      script(new URL('font.js', document.baseURI).href, () => !!window.LB_FONT)
+      local('font.js', () => !!window.LB_FONT),
+      local('book.js', () => !!window.Book)
     ]);
   }
-  return { pdf, zip, pdfExport };
+  const translate = () => Promise.all([zip(), local('translate.js', () => !!window.PptxTranslate)]);
+  return { pdf, zip, pdfExport, translate };
 })();
 
 window.Assets = Assets;
