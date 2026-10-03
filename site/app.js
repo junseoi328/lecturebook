@@ -573,19 +573,20 @@
       if (!file || !needAI()) return;
       run.disabled = true; result.hidden = true; bar.hidden = stop.hidden = false; if (!resume) fill.style.width = '0%';
       ctl = new AbortController();
-      let friendly = '';
+      let friendly = '', plan = null;
       const opt = {
         shorten: shorten.checked, signal: ctl.signal,
-        callAI: p => AI.json(p, { task: 'translate', signal: ctl.signal }).then(JSON.stringify, e => { friendly = (e && e.friendly) || ''; throw e; }),
+        callAI: p => AI.json(p, { task: 'translate', sticky: true, timeoutMs: 90000, signal: ctl.signal }).then(JSON.stringify, e => { friendly = (e && e.friendly) || ''; throw e; }),
         onProgress: p => {
           if (p.phase === 'wait') return say(`AI 사용 한도를 기다리는 중 ${p.seconds}초 (${friendly || '요청이 거절됐어요'})`);
-          const [label, base, span] = PHASE[p.phase]; fill.style.width = base + span * (p.total ? p.done / p.total : 0) + '%'; say(p.total > 1 ? `${label} ${p.done}/${p.total}` : label);
+          const [label, base, span] = PHASE[p.phase]; fill.style.width = base + span * (p.total ? p.done / p.total : 0) + '%'; say((p.total > 1 ? `${label} ${p.done}/${p.total}` : label) + (p.phase === 'translate' && plan ? ` · AI 요청 약 ${plan.requests}번` : ''));
         }
       };
       try {
         await Assets.translate();
         if (!resume || !job) job = await PdfTranslate.open(file, opt);
         if (!job.segments.length) { say('번역할 영어 문장을 찾지 못했어요. 스캔본처럼 글자가 그림으로 들어간 PDF는 번역할 수 없어요.'); return; }
+        plan = job.estimate();
         await job.translate(opt);
         const { blob, report: r } = await job.render(opt);
         if (!r.translated) { say('번역된 문장이 없어요. 다시 시도해 주세요.'); return; }

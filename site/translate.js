@@ -42,7 +42,7 @@
     maxScale: 2.5,
     jpeg: 0.88,
     lineGap: 1.45,       // 줄 간격이 글자 크기의 이 배수 이하면 같은 문단 후보로 본다
-    cellGap: 1.5,        // 같은 줄에서 이만큼(글자 크기 배수) 떨어지면 다른 칸으로 본다
+    cellGap: 1.2,        // 같은 줄에서 이만큼(글자 크기 배수) 떨어지면 다른 칸(표의 칸, 옆 단)으로 본다. 낱말 사이는 넓어도 1배를 넘지 않는다
     scriptScale: 0.68,   // 첨자 글자 크기
     fonts: '"Malgun Gothic","Apple SD Gothic Neo","Noto Sans KR","Noto Sans CJK KR",sans-serif',
   };
@@ -192,6 +192,8 @@
     const groups = [];
     for (const c of chains) {
       const right = Math.max(...c.map((l) => l.x + l.w)), wide = Math.max(...c.map((l) => l.w));
+      // 양쪽 맞춤 본문: 여러 줄의 오른쪽 끝이 한 선에 맞는다. 그 선까지 찬 줄은 문장이 끝났어도 문단이 이어진다
+      const justified = c.filter((l) => Math.abs(l.x + l.w - right) < 0.25 * l.size).length >= 3;
       let cur = [c[0]];
       for (let i = 1; i < c.length; i++) {
         const prev = c[i - 1], l = c[i];
@@ -204,7 +206,8 @@
         const measured = room > 0.5 * l.size;
         const flows = /^[a-z]{2,}/.test(l.text.replace(SCRIPT, " ").trim()) || HANGING.test(prev.text.trim()) || OPEN_PAREN.test(prev.text);
         const midParagraph = cur.length >= 2 && !/[.?!:;]$/.test(prev.text.trim());   // 이미 이어지던 문단이고 앞줄이 문장 끝이 아니다
-        if (need > room && prev.w >= 5 * prev.size && (measured || flows || midParagraph)) cur.push(l);
+        const filled = justified && right - (prev.x + prev.w) < 0.25 * l.size;
+        if (need > room && prev.w >= 5 * prev.size && (measured || flows || midParagraph || filled)) cur.push(l);
         else { groups.push(cur); cur = [l]; }
       }
       groups.push(cur);
@@ -255,6 +258,7 @@
 - 수식, 기호, 단위, 코드, 변수명, 약어(MOS, BFS), 화학식, 사람 이름, URL은 그대로 둔다. $나 \\ 같은 LaTeX 기호를 새로 넣지 않는다.
 - 맨 앞의 글머리 기호와 번호(▪, ✓, •, -, 1. 등)는 그대로 둔다.
 - 번역할 필요가 없는 항목은 원문을 그대로 돌려준다. 설명이나 주석을 덧붙이지 않는다.
+- 참고문헌 항목([1] 저자, "제목," 학술지, 연도)은 번역하지 않고 원문 그대로 돌려준다. 캡션의 Fig. 2, Table 1은 그림 2, 표 1로 옮긴다.
 - max는 그 항목이 차지할 수 있는 최대 폭이다. 폭 계산: 한글 1자=1, 영문·숫자 1자≈0.5, 공백≈0.3.
   max를 넘을 것 같으면 뜻은 유지하고 표현을 줄인다(조사·군더더기 생략, 개조식, 더 짧은 동의어).
 출력: JSON 객체 하나만. 형식 {"items":[{"id":0,"ko":"..."}]}. 입력의 모든 id를 빠짐없이 포함한다.`;
@@ -686,7 +690,43 @@ cross entropy|교차 엔트로피
 likelihood|가능도
 variance|분산
 eigenvalue|고윳값
-eigenvector|고유벡터`.trim().split("\n").map((l) => l.split("|"));
+eigenvector|고유벡터
+well|우물 (전위·양자) / 웰 (CMOS 공정)
+table|표 (자료) / 테이블 (데이터베이스)
+bulk potential|벌크 전위
+oxide capacitance|산화막 정전용량
+gate voltage|게이트 전압
+carrier concentration|캐리어 농도
+intrinsic carrier concentration|진성 캐리어 농도
+doping concentration|도핑 농도
+resistivity|비저항
+conductivity|전도도
+current density|전류 밀도
+sheet resistance|면저항
+trap|트랩
+band edge|밴드 가장자리
+latch up|래치업
+overhead|오버헤드
+bottleneck|병목
+scalability|확장성
+fault tolerance|결함 허용
+consistency|일관성
+availability|가용성
+replication|복제
+load balancing|부하 분산
+virtualization|가상화
+hypervisor|하이퍼바이저
+authentication|인증
+authorization|인가
+encryption|암호화
+decryption|복호화
+hash function|해시 함수
+public key|공개 키
+digital signature|전자 서명
+dispatcher|디스패처
+aging|에이징
+priority|우선순위
+quantum|할당량 (스케줄링) / 양자 (물리)`.trim().split("\n").map((l) => l.split("|"));
 
   /** 이 묶음의 영어에 실제로 나온 용어만 고른다 (긴 말 우선, 최대 60개) */
   function glossaryFor(items) {
@@ -719,6 +759,30 @@ eigenvector|고유벡터`.trim().split("\n").map((l) => l.split("|"));
     const a = t.indexOf("["), b = t.lastIndexOf("]");
     if (a < 0 || b < a) throw new Error("AI 응답에서 JSON 배열을 찾지 못했어요.");
     return JSON.parse(t.slice(a, b + 1));
+  }
+
+  const TEX = { phi: "φ", varphi: "φ", chi: "χ", psi: "ψ", epsilon: "ε", varepsilon: "ε", mu: "μ", rho: "ρ", sigma: "σ", tau: "τ", lambda: "λ",
+    alpha: "α", beta: "β", gamma: "γ", delta: "δ", theta: "θ", omega: "ω", pi: "π", Delta: "Δ", Omega: "Ω", Phi: "Φ", Psi: "Ψ",
+    times: "×", cdot: "·", rightarrow: "→", to: "→", leq: "≤", le: "≤", geq: "≥", ge: "≥", approx: "≈", equiv: "≡", pm: "±", infty: "∞", neq: "≠" };
+  /** 모델이 첨자를 다른 표기(V_G, $V_{G}$, V<sub>G</sub>, \phi_{ms})로 돌려줘도 우리 표기 V_{G}로 맞춘다 */
+  function tidy(en, ko) {
+    ko = ko.trim().replace(/<sub>(.*?)<\/sub>/gi, "_{$1}").replace(/<sup>(.*?)<\/sup>/gi, "^{$1}");
+    if (!en.includes("\\")) {
+      ko = ko.replace(/\\(?:text|mathrm|mathit|mathbf|operatorname)\{([^{}]*)\}/g, "$1")
+             .replace(/\\([A-Za-z]+)/g, (m, name) => (TEX[name] !== undefined ? TEX[name] : m));
+    }
+    if (!en.includes("$")) ko = ko.replace(/\$/g, "");
+    for (const tok of en.match(/[^\s(]?[_^]\{[^{}]*\}/g) || []) {   // V_G → V_{G}: 원문에 있던 기호만 고친다 (page_table 같은 변수명은 건드리지 않는다)
+      const bare = tok.replace(/[{}]/g, "");
+      if (!ko.includes(tok) && ko.includes(bare)) ko = ko.split(bare).join(tok);
+    }
+    return ko.replace(/[_^]\{\}/g, "").trim();
+  }
+  /** 원문의 기호+첨자(V_{G}, x^{2})가 번역에 그대로 남았는가, 번역다운 번역인가 */
+  function faithful(en, ko) {
+    for (const tok of en.match(/[^\s(]?[_^]\{[^{}]*\}/g) || []) if (!ko.includes(tok)) return false;
+    const words = (en.replace(SCRIPT, " ").match(/[A-Za-z]{3,}/g) || []).length;
+    return !(words >= 4 && !/[가-힣]/.test(ko));          // 긴 영어 문장인데 한글이 하나도 없으면 번역하지 않은 것
   }
 
   const aborted = (signal) => { if (signal && signal.aborted) throw new Error("중지했어요."); };
@@ -783,16 +847,18 @@ eigenvector|고유벡터`.trim().split("\n").map((l) => l.split("|"));
             if (!x || typeof x.ko !== "string" || !x.ko.trim()) continue;
             const it = pending.find((p) => p.id === Number(x.id));
             if (!it) continue;
-            let ko = x.ko.trim();
+            let ko = tidy(it.en, x.ko);
+            if (!ko) continue;
             if (!BULLET.test(it.en) && BULLET.test(ko + " ")) ko = ko.replace(BULLET, "") || ko;   // 원문에 없던 글머리표를 붙여 오면 뗀다 (글머리표는 원본 그림에 남아 있다)
             const mark = it.en.match(BULLET);
             if (mark && !BULLET.test(ko + " ")) ko = mark[0] + ko;                               // 반대로 원문의 글머리표를 빼먹으면 다시 붙인다
-            // 긴 영어 문장을 그대로 돌려준 것은 한 번 더 물어본다 (두 번째에도 같으면 받아들인다)
-            if (phase === "translate" && ko === it.en && (it.en.match(/[A-Za-z]{3,}/g) || []).length >= 4 && !echoed.has(it.id)) { echoed.add(it.id); continue; }
+            // 기호·첨자를 빠뜨렸거나 영어를 그대로 돌려준 것은 한 번 더 물어본다 (두 번째에도 같으면 받아들인다)
+            if (!faithful(it.en, ko) && !echoed.has(it.id)) { echoed.add(it.id); continue; }
             out.set(it.id, ko);
             if (opt.onItem) opt.onItem(it.id, ko);
           }
           failed = false;
+          gapMs = Math.floor(gapMs / 2);                       // 다시 잘 되면 간격을 조금씩 되돌린다
         } catch (e) {
           aborted(opt.signal);
           failed = true;
@@ -1015,7 +1081,8 @@ eigenvector|고유벡터`.trim().split("\n").map((l) => l.split("|"));
 
       if (o.shorten === false || state.stopped) return;
       for (let round = 0; round < CFG.shortenRounds; round++) {
-        const over = groupsOf(segs.filter((s) => s.ko && textWidth(plain(s.ko)) > s.max));
+        // 세 줄 이상인 문단은 20%까지 넘쳐도 줄이지 않는다: 글자를 10%쯤 줄이면 들어가고, 긴 글은 줄이다가 내용이 빠지기 쉽다
+        const over = groupsOf(segs.filter((s) => s.ko && textWidth(plain(s.ko)) > s.max * (s.block.n >= 3 ? 1.2 : 1)));
         if (!over.length) break;
         const fixed = await askInBatches(o, (items) => buildPrompt(true, items, { title: docTitle }), over.map((g) => ({ ...toItem(g), ko: g[0].ko })), "shorten");
         for (const g of over) {
@@ -1068,7 +1135,9 @@ eigenvector|고유벡터`.trim().split("\n").map((l) => l.split("|"));
       return { blob: doc.output("blob"), report };
     }
 
-    return { segments: segs, translate, render };
+    /** 남은 번역에 요청이 몇 번쯤 필요한가 (줄이기 요청은 빼고) */
+    const estimate = () => { const groups = groupsOf(segs.filter((s) => !s.ko)); return { items: groups.length, requests: planBatches(groups.map(toItem)).length }; };
+    return { segments: segs, translate, render, estimate };
   }
 
   /** 한 번에: 읽기 → 번역 → 만들기 */
@@ -1078,5 +1147,5 @@ eigenvector|고유벡터`.trim().split("\n").map((l) => l.split("|"));
     return job.render(opt);
   }
 
-  return { open, translatePdf, textWidth, toLines, toBlocks, translatable, runsOf, glossaryFor, buildPrompt, planBatches, config: CFG };
+  return { open, translatePdf, textWidth, toLines, toBlocks, translatable, runsOf, glossaryFor, buildPrompt, planBatches, tidy, faithful, config: CFG };
 });

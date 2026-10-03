@@ -356,12 +356,12 @@ ${JSON.stringify(compact)}`;
     if (!r.ok) throw requestError(r, 'Ollama');
     const data = await r.json(); return cleanJson(data && data.message && data.message.content);
   }
-  async function externalCandidates(task, images) {
+  async function externalCandidates(task, images, sticky) {
     const team = FREE_TEAM.filter(a => a.tasks.includes(images && images.length ? 'vision' : task) || a.tasks.includes(task));
     const configured = connections();
     const eligible = PROVIDERS.filter(p => configured[p.id] && (!(images && images.length) || ['gemini', 'openrouter'].includes(p.id)));
-    const shifted = images && images.length ? eligible : [...eligible.slice(runtime.turn % Math.max(1, eligible.length)), ...eligible.slice(0, runtime.turn % Math.max(1, eligible.length))];
-    runtime.turn++;
+    const shifted = (images && images.length) || sticky ? eligible : [...eligible.slice(runtime.turn % Math.max(1, eligible.length)), ...eligible.slice(0, runtime.turn % Math.max(1, eligible.length))];
+    if (!sticky) runtime.turn++;
     return shifted.map((provider, i) => ({ agent: team[i % Math.max(1, team.length)] || FREE_TEAM[0], provider: provider.name,
       model: provider.id === 'ollama' ? runtime.ollamaModel : provider.model, id: provider.id, url: provider.url, key: runtime[provider.key] }));
   }
@@ -419,12 +419,12 @@ ${JSON.stringify(compact)}`;
     cancelled: '중지했어요.'
   };
   const message = e => MSG[e && e.code] || '일시적인 오류예요. 잠시 뒤 다시 시도해 주세요.';
-  async function json(prompt, { images, onText, onProvider, signal, tier = 'default', cache, task } = {}) {
+  async function json(prompt, { images, onText, onProvider, signal, tier = 'default', cache, task, sticky, timeoutMs = 45000 } = {}) {
     const failed = new Set();
     const actualTask = task || taskOf(prompt);
     let attempts = 0;
     let lastError = null;
-    for (const candidate of await externalCandidates(actualTask, images)) {
+    for (const candidate of await externalCandidates(actualTask, images, sticky)) {
       if (candidate.id === 'cerebras' && prompt.length > 18000) { lastError = { code: 'prompt_too_large' }; continue; } // 무료 플랜 8K 문맥 한도
       if (failed.has(candidate.provider)) continue;
       if (attempts++ >= 5) break;
@@ -432,7 +432,7 @@ ${JSON.stringify(compact)}`;
       const ctl = new AbortController();
       const abort = () => ctl.abort();
       if (signal) signal.addEventListener('abort', abort, { once: true });
-      const timer = setTimeout(() => ctl.abort(), 45000);
+      const timer = setTimeout(() => ctl.abort(), timeoutMs);
       try {
         onProvider && onProvider(candidate.agent.name, candidate.provider, candidate.model);
         const out = await callCandidate(candidate, rolePrompt, images, ctl.signal);

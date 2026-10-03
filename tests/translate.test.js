@@ -43,3 +43,15 @@ console.log('통과  묶음 나누기: 짧은 자료 1회, 긴 자료는 쪽 단
 const withPages = T.buildPrompt(false, items, { title: 'MOS', pages: '1쪽: MOS Capacitor\n2쪽: Scheduling' });
 assert(withPages.includes('2쪽: Scheduling') && withPages.includes('긴 문단은 문장을 빼거나 합쳐 요약하지 않는다'));
 console.log('통과  짧은 항목에는 쪽 제목을, 긴 문단에는 요약 금지 지침을 준다');
+
+// 모델이 돌려준 글 다듬기와 검사
+assert.strictEqual(T.tidy('as V_{G} changes', 'V_G가 변한다'), 'V_{G}가 변한다');
+assert.strictEqual(T.tidy('E_{F} is flat', '$E_{F}$는 평탄하다'), 'E_{F}는 평탄하다');
+assert.strictEqual(T.tidy('φ_{ms} bends the bands', '\\phi_{ms}가 밴드를 휘게 한다'), 'φ_{ms}가 밴드를 휘게 한다');
+assert.strictEqual(T.tidy('depletion width x_{d}', '공핍 폭 x<sub>d</sub>'), '공핍 폭 x_{d}');
+assert.strictEqual(T.tidy('call page_table here', 'page_table 호출'), 'page_table 호출', '변수명의 밑줄은 첨자로 바꾸지 않는다');
+assert.strictEqual(T.faithful('See how V_{G} changes over time', '시간에 따라 V가 변하는 모습 확인'), false, '첨자를 빠뜨리면 다시 묻는다');
+assert.strictEqual(T.faithful('See how V_{G} changes over time', '시간에 따라 V_{G}가 변하는 모습 확인'), true);
+assert.strictEqual(T.faithful('The oxide blocks current flow completely', 'The oxide blocks the current flow'), false, '영어로 돌려주면 다시 묻는다');
+assert.strictEqual(T.faithful('MOSFET', 'MOSFET'), true, '약어처럼 그대로 둘 말은 통과');
+console.log('통과  모델 출력 다듬기(V_G, $…$, <sub>, \\phi)와 검사(첨자 누락, 미번역)');
