@@ -34,6 +34,8 @@
     minFontScale: 0.7,   // 글자 축소 하한
     batchItems: 40,      // 한 번에 보내는 문단 수. 무료 한도는 하루 요청 수도 세므로 너무 잘게 나누지 않는다 (실패하면 알아서 반으로 쪼갠다)
     batchChars: 4500,
+    longDocChars: 30000, // 번역할 글이 이보다 많으면 긴 자료로 보고 묶음을 1.5배로 키운다
+    longDocPages: 60,    // 쪽수가 이보다 많으면 쪽 그림을 조금 작게 만들어 파일 크기와 메모리를 줄인다
     retryWaits: [0, 12000, 30000, 60000],   // 실패한 묶음을 다시 보내기 전 기다리는 시간(ms). 무료 한도는 대개 1분 단위로 풀린다
     minGapMs: 4200,      // 요청 사이 최소 간격. 분당 15회 한도에 걸리지 않게 한다
     maxPx: 1800,         // 쪽 그림의 가로 픽셀 상한 (선명도와 파일 크기의 절충)
@@ -261,6 +263,8 @@
   const STYLE = `문체 (한국 대학의 전자공학·컴퓨터공학 강의자료처럼 쓴다)
 - 영어 어순을 따라가지 말고, 그 내용을 한국어 강의자료라면 어떻게 썼을지 생각해서 다시 쓴다. 뜻을 더하거나 빼지는 않는다.
 - 항목의 t가 "title"이면 명사형으로 끝나는 짧은 제목, "label"이면 그림·표에 붙는 짧은 명사구(예: 전하 없음, 전류 흐름), "text"면 본문이다.
+- 한두 낱말짜리 항목은 낱말만 보고 옮기지 말고 쪽 제목과 같은 쪽의 다른 항목을 보고 뜻을 정한다 (gate: 게이트, body: 바디, current: 전류, well: 우물, table: 테이블/표).
+- 긴 문단은 문장을 빼거나 합쳐 요약하지 않는다. 문장 수와 순서를 지키고, 한 문장이 너무 길면 쉼표로 호흡을 나눈다. 문단 안에서는 종결 어미를 하나로 통일한다.
 - 본문은 "~한다/~이다"체나 간결한 개조식으로 쓴다. 한 자료 안에서 "~합니다"체와 섞지 않는다. 원문이 조각 문장이면 번역도 조각 문장으로 둔다.
 - we, you, it, this 같은 대명사 주어는 옮기지 않는다. "그것은", "우리는", "당신은"을 쓰지 않는다.
 - 번역 투를 피한다: "~되어진다", "~에 의해 ~된다", "~하는 것이다", "~에 대한 ~의", "~을 가진다", "~의 ~의 ~" 같은 표현 대신 능동문과 짧은 조사로 쓴다.
@@ -704,6 +708,7 @@ eigenvector|고유벡터`.trim().split("\n").map((l) => l.split("|"));
       RULES,
       STYLE,
       ctx.title ? `자료 제목: ${ctx.title}` : "",
+      ctx.pages ? `쪽 제목 (라벨·짧은 항목은 그 쪽의 주제에 맞는 뜻으로 옮긴다)\n${ctx.pages}` : "",
       terms ? `용어집 (왼쪽 말이 나오면 오른쪽 번역어로 통일)\n${terms}` : "",
       ctx.memo ? `앞에서 이렇게 옮겼다 (같은 말은 똑같이 옮긴다)\n${ctx.memo}` : "",
     ].filter(Boolean).join("\n\n") + "\n\n입력:\n" + JSON.stringify(items);
@@ -726,6 +731,34 @@ eigenvector|고유벡터`.trim().split("\n").map((l) => l.split("|"));
     aborted(signal);
   }
 
+  const sizeOf = (it) => it.en.length + (it.ko ? it.ko.length : 0);
+  /**
+   * 항목을 묶음으로 나눈다. 같은 쪽의 항목은 되도록 한 묶음에 둔다(짧은 라벨이 그 쪽의 문맥과 함께 가도록).
+   * 긴 자료는 묶음을 키워 요청 수를 줄인다: 무료 한도는 하루 요청 수도 세기 때문이다. 큰 묶음이 실패하면 askInBatches가 반으로 쪼갠다.
+   */
+  function planBatches(items) {
+    const total = items.reduce((n, it) => n + sizeOf(it), 0), big = total > CFG.longDocChars;
+    const maxItems = big ? CFG.batchItems * 1.5 : CFG.batchItems, maxChars = big ? CFG.batchChars * 1.5 : CFG.batchChars;
+    const pages = [];                                   // 쪽별로 모은다
+    for (const it of items) {
+      const last = pages[pages.length - 1];
+      if (last && last[0].page === it.page) last.push(it); else pages.push([it]);
+    }
+    const batches = [];
+    let cur = [], chars = 0;
+    const flush = () => { if (cur.length) { batches.push(cur); cur = []; chars = 0; } };
+    for (const group of pages) {
+      const size = group.reduce((n, it) => n + sizeOf(it), 0);
+      if (cur.length && (cur.length + group.length > maxItems || chars + size > maxChars)) flush();
+      for (const it of group) {                         // 한 쪽이 한 묶음보다 크면 그 쪽은 나눈다
+        if (cur.length >= maxItems || (cur.length && chars + sizeOf(it) > maxChars)) flush();
+        cur.push(it); chars += sizeOf(it);
+      }
+    }
+    flush();
+    return batches;
+  }
+
   let lastCall = 0, gapMs = 0;
   /**
    * 묶음으로 나눠 묻는다. 요청이 실패하면 기다렸다가 다시 보내고(한도는 대개 1분 안에 풀린다), 그래도 안 되면 묶음을 반으로 쪼갠다.
@@ -733,14 +766,8 @@ eigenvector|고유벡터`.trim().split("\n").map((l) => l.split("|"));
    */
   async function askInBatches(opt, makePrompt, items, phase) {
     const out = new Map(), progress = opt.onProgress || (() => {});
-    const batches = [];
-    let cur = [], chars = 0, done = 0;
-    for (const it of items) {
-      cur.push(it);
-      chars += it.en.length + (it.ko ? it.ko.length : 0);
-      if (cur.length >= CFG.batchItems || chars >= CFG.batchChars) { batches.push(cur); cur = []; chars = 0; }
-    }
-    if (cur.length) batches.push(cur);
+    const batches = planBatches(items);
+    let done = 0;
 
     async function ask(list, depth) {
       let pending = list, failed = false;
@@ -924,7 +951,7 @@ eigenvector|고유벡터`.trim().split("\n").map((l) => l.split("|"));
         segs.push(seg); mine.push(seg);
       }
       // 항목 종류: 그 쪽에서 유난히 큰 글자는 제목, 서너 낱말짜리 한 줄은 라벨, 나머지는 본문
-      const sizes = mine.map((s) => s.block.size).sort((a, b) => a - b), median = sizes[sizes.length >> 1] || 0;
+      const sizes = mine.map((s) => s.block.size).sort((a, b) => a - b), median = sizes[(sizes.length - 1) >> 1] || 0;
       for (const s of mine) {
         const words = plain(s.en).trim().split(/\s+/).length;
         s.t = s.block.size >= 1.25 * median ? "title" : s.block.n === 1 && words <= 3 ? "label" : "text";
@@ -934,33 +961,66 @@ eigenvector|고유벡터`.trim().split("\n").map((l) => l.split("|"));
     }
 
     const state = { shortened: new Set(), stopped: false };
-    const toItem = (s) => ({ id: s.id, page: s.page, t: s.t, en: s.en, max: s.max });
     const docTitle = (segs.find((s) => s.t === "title") || segs[0] || { en: "" }).en;
-    // 앞에서 옮긴 짧은 말(제목·라벨·용어) 몇 개를 다음 묶음에 보여 줘서 같은 말을 똑같이 옮기게 한다
-    const context = () => ({
-      title: docTitle,
-      memo: segs.filter((s) => s.ko && s.ko !== s.en && plain(s.en).split(/\s+/).length <= 6).slice(-25).map((s) => `${s.en} → ${s.ko}`).join("\n"),
-    });
+    const pageTitle = new Map();                        // 쪽 → 그 쪽의 제목(없으면 첫 항목)
+    for (const s of segs) if (!pageTitle.has(s.page) || (s.t === "title" && pageTitle.get(s.page).t !== "title")) pageTitle.set(s.page, s);
+    const wordsOf = (t) => new Set(plain(t).toLowerCase().match(/[a-z]{4,}/g) || []);
+
+    /** 묶음에 붙일 문맥: 자료 제목, 쪽 제목, 앞에서 옮긴 짧은 말 가운데 이 묶음과 낱말이 겹치는 것(없으면 최근 것) */
+    function context(items) {
+      const pages = [...new Set(items.map((it) => it.page))];
+      const want = wordsOf(items.map((it) => it.en).join(" ")), seen = new Set(), memo = [];
+      for (let i = segs.length - 1; i >= 0; i--) {
+        const s = segs[i];
+        if (!s.ko || s.ko === s.en || seen.has(s.en) || plain(s.en).split(/\s+/).length > 6) continue;
+        seen.add(s.en);
+        let score = 0;
+        for (const w of wordsOf(s.en)) if (want.has(w)) score++;
+        memo.push({ s, score, recent: memo.length });
+      }
+      const picked = memo.filter((m) => m.score > 0 || m.recent < 8).sort((a, b) => b.score - a.score || a.recent - b.recent).slice(0, 25);
+      return {
+        title: docTitle,
+        pages: pages.length > 1 || items.some((it) => it.t !== "title") ? pages.map((n) => `${n}쪽: ${pageTitle.get(n).en}`).join("\n") : "",
+        memo: picked.map((m) => `${m.s.en} → ${m.s.ko}`).join("\n"),
+      };
+    }
+
+    /** 글과 종류가 같은 항목끼리 묶는다: 쪽마다 되풀이되는 제목·라벨은 한 번만 묻고 같은 번역을 쓴다. 자리는 가장 좁은 곳에 맞춘다 */
+    function groupsOf(list) {
+      const groups = new Map();
+      for (const s of list) {
+        const key = s.t + "\n" + s.en + "\n" + (s.ko || "");
+        if (!groups.has(key)) groups.set(key, []);
+        groups.get(key).push(s);
+      }
+      return [...groups.values()];
+    }
+    const toItem = (g) => ({ id: g[0].id, page: g[0].page, t: g[0].t, en: g[0].en, max: Math.min(...g.map((s) => s.max)) });
 
     /** 아직 번역 안 된 문단만 번역한다. 한도에 걸려 멈췄으면 다시 부르면 이어서 한다. */
     async function translate(o) {
       o = o || {};
       if (typeof o.callAI !== "function") throw new Error("callAI 함수가 필요해요.");
-      const todo = segs.filter((s) => !s.ko);
+      // 이미 번역된 같은 글이 있으면 묻지 않고 그대로 쓴다 (이어서 번역할 때)
+      const known = new Map(segs.filter((s) => s.ko).map((s) => [s.t + "\n" + s.en, s.ko]));
+      for (const s of segs) if (!s.ko && known.has(s.t + "\n" + s.en)) s.ko = known.get(s.t + "\n" + s.en);
+      const groups = groupsOf(segs.filter((s) => !s.ko)), byId = new Map(groups.map((g) => [g[0].id, g]));
+      state.asked = groups.length;
       // 받는 대로 바로 채워 넣는다: 다음 묶음의 "앞에서 이렇게 옮겼다"에 쓰인다
-      const byId = new Map(todo.map((s) => [s.id, s]));
-      const first = await askInBatches({ ...o, onItem: (id, ko) => { byId.get(id).ko = ko; } }, (items) => buildPrompt(false, items, context()), todo.map(toItem), "translate");
+      const first = await askInBatches({ ...o, onItem: (id, ko) => { for (const s of byId.get(id)) s.ko = ko; } },
+        (items) => buildPrompt(false, items, context(items)), groups.map(toItem), "translate");
       state.stopped = first.stopped;
-      if (todo.length && !first.out.size) throw new Error("AI가 번역 결과를 돌려주지 않았어요. AI 설정과 사용 한도를 확인해 주세요.");
+      if (groups.length && !first.out.size) throw new Error("AI가 번역 결과를 돌려주지 않았어요. AI 설정과 사용 한도를 확인해 주세요.");
 
       if (o.shorten === false || state.stopped) return;
       for (let round = 0; round < CFG.shortenRounds; round++) {
-        const over = segs.filter((s) => s.ko && textWidth(plain(s.ko)) > s.max);
+        const over = groupsOf(segs.filter((s) => s.ko && textWidth(plain(s.ko)) > s.max));
         if (!over.length) break;
-        const fixed = await askInBatches(o, (items) => buildPrompt(true, items, { title: docTitle }), over.map((s) => ({ ...toItem(s), ko: s.ko })), "shorten");
-        for (const s of over) {
-          const ko = fixed.out.get(s.id);
-          if (ko && textWidth(plain(ko)) < textWidth(plain(s.ko))) { s.ko = ko; state.shortened.add(s.id); }   // 더 짧아졌을 때만 채택
+        const fixed = await askInBatches(o, (items) => buildPrompt(true, items, { title: docTitle }), over.map((g) => ({ ...toItem(g), ko: g[0].ko })), "shorten");
+        for (const g of over) {
+          const ko = fixed.out.get(g[0].id);
+          if (ko && textWidth(plain(ko)) < textWidth(plain(g[0].ko))) for (const s of g) { s.ko = ko; state.shortened.add(s.id); }   // 더 짧아졌을 때만 채택
         }
         if (fixed.stopped) break;                       // 줄이기는 못 해도 번역은 끝났으니 그대로 둔다
       }
@@ -985,7 +1045,8 @@ eigenvector|고유벡터`.trim().split("\n").map((l) => l.split("|"));
         aborted(o.signal);
         prog({ phase: "write", done: i, total: pages.length });
         const { page, vp } = pages[i], w = vp.width, h = vp.height;
-        const k = Math.min(CFG.maxScale, CFG.maxPx / w);
+        const many = pages.length > CFG.longDocPages;
+        const k = Math.min(CFG.maxScale, (many ? CFG.maxPx * 0.8 : CFG.maxPx) / w);
         canvas.width = Math.round(w * k); canvas.height = Math.round(h * k);
         ctx.fillStyle = "#ffffff"; ctx.fillRect(0, 0, canvas.width, canvas.height);
         await page.render({ canvasContext: ctx, viewport: page.getViewport({ scale: k }) }).promise;
@@ -1000,7 +1061,7 @@ eigenvector|고유벡터`.trim().split("\n").map((l) => l.split("|"));
         if (flagged) report.checkPages.push(i + 1);
         const dir = w > h ? "l" : "p";
         if (doc) doc.addPage([w, h], dir); else doc = new JsPDF({ unit: "pt", format: [w, h], orientation: dir, compress: true });
-        doc.addImage(canvas.toDataURL("image/jpeg", CFG.jpeg), "JPEG", 0, 0, w, h, undefined, "FAST");
+        doc.addImage(canvas.toDataURL("image/jpeg", many ? CFG.jpeg - 0.06 : CFG.jpeg), "JPEG", 0, 0, w, h, undefined, "FAST");
       }
       canvas.width = canvas.height = 0;
       prog({ phase: "write", done: pages.length, total: pages.length });
@@ -1017,5 +1078,5 @@ eigenvector|고유벡터`.trim().split("\n").map((l) => l.split("|"));
     return job.render(opt);
   }
 
-  return { open, translatePdf, textWidth, toLines, toBlocks, translatable, runsOf, glossaryFor, buildPrompt, config: CFG };
+  return { open, translatePdf, textWidth, toLines, toBlocks, translatable, runsOf, glossaryFor, buildPrompt, planBatches, config: CFG };
 });

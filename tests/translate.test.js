@@ -25,3 +25,21 @@ console.log('통과  번역·줄이기 프롬프트: 문체 지침, 용어집, �
 assert.deepStrictEqual(T.runsOf('V_{G}가'), [['V', 0], ['G', 1], ['가', 0]]);
 assert.deepStrictEqual(T.runsOf('x^{2}'), [['x', 0], ['2', 2]]);
 console.log('통과  첨자 표기를 본문·아래첨자·위첨자 조각으로 나눈다');
+
+// 묶음 나누기: 짧은 자료는 한 번에, 긴 자료는 쪽 단위로 끊어 여러 번에
+const mk = (n, page, len) => ({ id: n, page, t: 'text', en: 'x'.repeat(len), max: 10 });
+assert.strictEqual(T.planBatches([mk(0, 1, 30), mk(1, 1, 40), mk(2, 2, 20)]).length, 1, '짧은 자료는 요청 한 번');
+const long = [];
+for (let page = 1; page <= 40; page++) for (let i = 0; i < 9; i++) long.push(mk(long.length, page, 110));
+const batches = T.planBatches(long);
+assert.strictEqual(batches.flat().length, long.length, '빠지는 항목이 없다');
+assert(batches.length <= 8, '긴 자료(40쪽·360항목)도 요청 8번 이내: ' + batches.length);
+assert(batches.every(b => b.length <= T.config.batchItems * 1.5));
+for (let i = 1; i < batches.length; i++) assert.notStrictEqual(batches[i][0].page, batches[i - 1][batches[i - 1].length - 1].page, '쪽 중간에서 끊지 않는다');
+const huge = T.planBatches([mk(0, 1, 9000), mk(1, 1, 50)]);
+assert.strictEqual(huge.length, 2, '한 묶음보다 긴 문단은 혼자 한 묶음');
+console.log('통과  묶음 나누기: 짧은 자료 1회, 긴 자료는 쪽 단위로 요청 수 최소화, 긴 문단은 따로');
+
+const withPages = T.buildPrompt(false, items, { title: 'MOS', pages: '1쪽: MOS Capacitor\n2쪽: Scheduling' });
+assert(withPages.includes('2쪽: Scheduling') && withPages.includes('긴 문단은 문장을 빼거나 합쳐 요약하지 않는다'));
+console.log('통과  짧은 항목에는 쪽 제목을, 긴 문단에는 요약 금지 지침을 준다');
