@@ -4,6 +4,7 @@ from reportlab.pdfgen import canvas
 from reportlab.pdfbase import pdfmetrics
 from reportlab.pdfbase.ttfonts import TTFont
 from reportlab.lib.utils import ImageReader
+from reportlab.lib.colors import HexColor
 from PIL import Image, ImageDraw, ImageFont
 from pptx import Presentation
 from docx import Document
@@ -37,6 +38,30 @@ for title, body in [('6주차 동기화', '임계 구역(critical section) 문�
     s = p.slides.add_slide(p.slide_layouts[1]); s.shapes.title.text = title; s.placeholders[1].text = body
     s.notes_slide.notes_text_frame.text = '시험에 자주 나옴'
 p.save(OUT / 'os-week6.pptx')
+
+# 번역 PDF 테스트용 영어 슬라이드 (글머리표 줄바꿈, 두 단, 표)
+W, H = 960, 540
+c = canvas.Canvas(str(OUT / 'en-slides.pdf'), pagesize=(W, H))
+def en_title(t):
+    c.setFillColor(HexColor('#1f2a44')); c.rect(0, H - 90, W, 90, stroke=0, fill=1)
+    c.setFillColor(HexColor('#ffffff')); c.setFont('Helvetica-Bold', 32); c.drawCentredString(W / 2, H - 58, t)
+en_title('Process Scheduling Algorithms')
+c.setFillColor(HexColor('#222222')); c.setFont('Helvetica', 20)
+for i, ln in enumerate(['• First Come First Served runs jobs in the order they arrive, which is simple', '  but can cause the convoy effect when a long job blocks short ones.',
+                        '• Round Robin gives each process a fixed time quantum.', '• Complexity is O(n log n) with a priority queue.']): c.drawString(60, H - 140 - i * 28, ln)
+c.setFont('Helvetica-Oblique', 14); c.setFillColor(HexColor('#666666')); c.drawString(60, 40, 'Operating Systems, Week 5'); c.drawRightString(W - 60, 40, '1')
+c.showPage()
+en_title('Comparison')
+c.setFillColor(HexColor('#222222')); c.setFont('Helvetica', 16)
+for i, ln in enumerate(['Preemptive scheduling can interrupt a', 'running process when a higher priority', 'process becomes ready to run.']): c.drawString(60, H - 140 - i * 21, ln)
+for i, ln in enumerate(['Non-preemptive scheduling waits until', 'the running process finishes or blocks', 'before choosing the next one.']): c.drawString(500, H - 140 - i * 21, ln)
+c.setFillColor(HexColor('#eef2ff')); c.rect(60, 150, 840, 120, stroke=0, fill=1)
+c.setFillColor(HexColor('#1f2a44')); c.setFont('Helvetica-Bold', 15)
+for x, t in [(80, 'Algorithm'), (360, 'Average waiting time'), (660, 'Starvation')]: c.drawString(x, 240, t)
+c.setFont('Helvetica', 15)
+for r, row in enumerate([('FCFS', 'High when jobs vary', 'No'), ('SJF', 'Lowest possible', 'Yes')]):
+    for x, t in zip((80, 360, 660), row): c.drawString(x, 205 - r * 32, t)
+c.showPage(); c.save()
 
 d = Document(); d.add_heading('7주차 교착 상태', 1); d.add_paragraph('교착 상태의 네 가지 조건: 상호 배제, 점유와 대기, 비선점, 순환 대기.'); d.save(OUT / 'os-week7.docx')
 print('fixtures:', sorted(x.name for x in OUT.iterdir()))

@@ -36,7 +36,7 @@ const Assets = (() => {
       local('book.js', () => !!window.Book)
     ]);
   }
-  const translate = () => Promise.all([zip(), local('translate.js', () => !!window.PptxTranslate)]);
+  const translate = () => Promise.all([pdf(), script(CDN.pdfExport, () => !!window.jspdf), local('translate.js', () => !!window.PdfTranslate)]);
   return { pdf, zip, pdfExport, translate };
 })();
 

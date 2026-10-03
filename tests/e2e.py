@@ -79,7 +79,7 @@ with sync_playwright() as p:
     pg.on('console', lambda m: m.type == 'error' and 'fonts.g' not in m.text and 'worker-src' not in m.text and errors.append(m.text))
     pg.goto(URL); pg.wait_for_timeout(800); shot(pg, '01_home')
     check(pg.inner_text('.ai-pill') == 'AI 연결됨', 'AI 연결 표시')
-    check(pg.evaluate('!window.pdfjsLib && !window.jspdf && !window.JSZip && !window.Book && !window.PptxTranslate'), '첫 화면에서는 무거운 도구를 불러오지 않음')
+    check(pg.evaluate('!window.pdfjsLib && !window.jspdf && !window.JSZip && !window.Book && !window.PdfTranslate'), '첫 화면에서는 무거운 도구를 불러오지 않음')
 
     pg.fill('.newcourse input', '운영체제'); pg.click('button:has-text("과목 만들기")'); pg.wait_for_timeout(300)
     check('/c/' in pg.url, '과목 만들기')

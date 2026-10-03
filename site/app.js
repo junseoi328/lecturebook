@@ -452,7 +452,7 @@
     ]);
     app.replaceChildren(appbar(), h('main.page.home-page', { tabindex: '-1', class: animate ? 'view-enter' : '' },
       h('div.home-top', hero, h('section.quick-wrap', secTitle('자료 정리'), quickCard(courses))),
-      h('section.quick-wrap', secTitle('번역 PPT 만들기'), translateCard()),
+      h('section.quick-wrap', secTitle('번역 PDF 만들기'), translateCard()),
       studyFlow(courses, stats, next, focusStats),
       secTitle('내 과목'),
       h('form.newcourse', { onsubmit: add }, name, h('button.btn', { type: 'submit' }, '과목 만들기')),
@@ -544,29 +544,29 @@
     return card;
   }
 
-  // ---------- 번역 PPT (영어 PPTX → 같은 디자인의 한국어 PPTX) ----------
+  // ---------- 번역 PDF (영어 PDF → 같은 쪽 모양의 한국어 PDF) ----------
   // 카드 하나를 계속 재사용한다. 번역 중에 화면이 다시 그려져도 진행 상태가 남는다.
   let trCard = null;
   function translateCard() {
     if (trCard) return trCard;
     let file = null, ctl = null;
-    const name = h('strong', '영어 PPT 추가'), hint = h('span.small', 'PPTX 파일을 끌어다 놓거나 눌러서 선택');
-    const shorten = h('input', { type: 'checkbox', checked: true }), notes = h('input', { type: 'checkbox' });
+    const name = h('strong', '영어 PDF 추가'), hint = h('span.small', 'PDF 파일을 끌어다 놓거나 눌러서 선택');
+    const shorten = h('input', { type: 'checkbox', checked: true });
     const stage = h('p.small', { role: 'status', 'aria-live': 'polite', hidden: true }), fill = h('span'), bar = h('div.bar', { hidden: true }, fill);
     const result = h('div.job.ok', { hidden: true });
     const say = text => { stage.hidden = !text; stage.textContent = text || ''; };
     const setFile = f => {
       if (!f || ctl) return;
-      if (!/\.pptx$/i.test(f.name)) return say('PPTX 파일만 번역할 수 있어요. 구버전 PPT는 PowerPoint에서 PPTX로 저장한 뒤 올려 주세요.');
+      if (!/\.pdf$/i.test(f.name)) return say('PDF 파일만 번역할 수 있어요. PPT는 PowerPoint에서 PDF로 저장한 뒤 올려 주세요.');
       file = f; name.textContent = f.name; hint.textContent = f.size < 1048576 ? Math.ceil(f.size / 1024) + ' KB' : (f.size / 1048576).toFixed(1) + ' MB';
       run.disabled = false; result.hidden = true; say('');
     };
-    const input = h('input.visually-hidden', { type: 'file', accept: '.pptx', 'aria-label': '번역할 영어 PPTX', onchange: e => { setFile(e.target.files[0]); e.target.value = ''; } });
+    const input = h('input.visually-hidden', { type: 'file', accept: '.pdf,application/pdf', 'aria-label': '번역할 영어 PDF', onchange: e => { setFile(e.target.files[0]); e.target.value = ''; } });
     const zone = h('label.drop', input, h('span.ico', { 'aria-hidden': 'true' }, '가'), name, hint);
     zone.addEventListener('dragover', e => { e.preventDefault(); zone.classList.add('over'); });
     zone.addEventListener('dragleave', () => zone.classList.remove('over'));
     zone.addEventListener('drop', e => { e.preventDefault(); zone.classList.remove('over'); setFile(e.dataTransfer.files[0]); });
-    const PHASE = { read: ['파일 읽는 중', 0, 5], translate: ['번역하는 중', 5, 70], shorten: ['긴 문장 줄이는 중', 75, 17], write: ['PPT에 써넣는 중', 92, 8] };
+    const PHASE = { read: ['파일 읽는 중', 0, 5], translate: ['번역하는 중', 5, 60], shorten: ['긴 문장 줄이는 중', 65, 15], write: ['PDF로 만드는 중', 80, 20] };
     const stop = h('button.btn.quiet.sm', { type: 'button', hidden: true, onclick: () => ctl && ctl.abort() }, '중지');
     const run = h('button.btn', { type: 'button', disabled: true, onclick: async () => {
       if (!file || !needAI()) return;
@@ -575,29 +575,29 @@
       let friendly = '';
       try {
         await Assets.translate();
-        const { blob, report: r } = await PptxTranslate.translatePptx(file, {
-          shorten: shorten.checked, includeNotes: notes.checked, signal: ctl.signal,
+        const { blob, report: r } = await PdfTranslate.translatePdf(file, {
+          shorten: shorten.checked, signal: ctl.signal,
           callAI: p => AI.json(p, { task: 'summary', signal: ctl.signal }).then(JSON.stringify, e => { friendly = (e && e.friendly) || ''; throw e; }),
-          onProgress: p => { const [label, base, span] = PHASE[p.phase]; fill.style.width = base + span * (p.total ? p.done / p.total : 0) + '%'; say(p.phase === 'translate' || p.phase === 'shorten' ? `${label} ${p.done}/${p.total}` : label); }
+          onProgress: p => { const [label, base, span] = PHASE[p.phase]; fill.style.width = base + span * (p.total ? p.done / p.total : 0) + '%'; say(p.total > 1 ? `${label} ${p.done}/${p.total}` : label); }
         });
-        if (!r.translated) { say(r.segments ? '번역된 문장이 없어요. 다시 시도해 주세요.' : '번역할 영어 문장을 찾지 못했어요.'); return; }
-        const outName = file.name.replace(/\.pptx$/i, '') + '_ko.pptx';
+        if (!r.translated) { say(r.segments ? '번역된 문장이 없어요. 다시 시도해 주세요.' : '번역할 영어 문장을 찾지 못했어요. 스캔본처럼 글자가 그림으로 들어간 PDF는 번역할 수 없어요.'); return; }
+        const outName = file.name.replace(/\.pdf$/i, '') + '_ko.pdf';
         result.replaceChildren(h('div.job-top', h('strong', outName), h('span.stage', '완료')),
-          h('ul.small', [`슬라이드 ${r.slides}장에서 ${r.translated}곳을 한국어로 바꿨어요.`,
-            r.shortened && `글상자에 맞추려고 ${r.shortened}곳은 문장을 줄였어요.`,
-            r.shrunk.length && `그래도 넘치는 글상자 ${r.shrunk.length}개는 글자 크기를 줄였어요.`,
+          h('ul.small', [`${r.pages}쪽에서 ${r.translated}곳을 한국어로 바꿨어요.`,
+            r.shortened && `원문 자리에 맞추려고 ${r.shortened}곳은 문장을 줄였어요.`,
+            r.shrunk && `그래도 넘치는 ${r.shrunk}곳은 글자 크기를 줄였어요.`,
             r.untranslated && `${r.untranslated}곳은 번역에 실패해 영어로 남겼어요.`,
-            r.checkSlides.length && `${r.checkSlides.join(', ')}번 슬라이드는 글자가 넘칠 수 있으니 열어서 확인해 주세요.`].filter(Boolean).map(t => h('li', t))),
-          h('div.row', h('button.btn.sm', { type: 'button', onclick: () => saveFile(outName, blob) }, '한국어 PPT 받기')));
+            r.checkPages.length && `${r.checkPages.join(', ')}쪽은 글자가 자리를 넘으니 열어서 확인해 주세요.`].filter(Boolean).map(t => h('li', t))),
+          h('div.row', h('button.btn.sm', { type: 'button', onclick: () => saveFile(outName, blob) }, '한국어 PDF 받기')));
         result.hidden = false; say('');
       } catch (e) {
         say(ctl.signal.aborted ? '중지했어요.' : friendly || (e && e.message) || '번역 중 문제가 생겼어요. 다시 시도해 주세요.');
       } finally { ctl = null; bar.hidden = stop.hidden = true; run.disabled = !file; }
-    } }, '한국어 PPT 만들기');
+    } }, '한국어 PDF 만들기');
     return trCard = h('div.card.quick',
-      h('p.small', '영어 수업자료를 디자인은 그대로 두고 글자만 한국어로 바꿔요. 그림·차트 속 글자는 바뀌지 않아요.'),
+      h('p.small', '영어 수업자료를 쪽 모양은 그대로 두고 글자만 한국어로 바꿔요. 스캔본과 그림 속 글자는 바뀌지 않고, 결과 PDF의 글자는 선택·검색이 안 돼요.'),
       zone,
-      h('label.check', shorten, '넘치면 문장 줄이기'), h('label.check', notes, '발표자 노트도 번역'),
+      h('label.check', shorten, '넘치면 문장 줄이기'),
       h('div.row', run, stop), stage, bar, result);
   }
 
