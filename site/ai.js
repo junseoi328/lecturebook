@@ -256,7 +256,7 @@ ${JSON.stringify(compact)}`;
     { id: 'checker', name: '근거 검수', skill: '페이지 근거와 JSON 형식 최종 검사', tasks: ['summary', 'analysis', 'quiz', 'grade'], hint: /gpt-oss|qwen|gemma/i }
   ];
   const PROVIDERS = [
-    { id: 'gemini', name: 'Gemini', key: 'geminiKey', url: 'https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent', model: 'gemini-2.5-flash', site: 'https://aistudio.google.com/apikey', note: '긴 문서 · 이미지' },
+    { id: 'gemini', name: 'Gemini', key: 'geminiKey', url: 'https://generativelanguage.googleapis.com/v1beta/models/gemini-3.6-flash:generateContent', model: 'gemini-3.6-flash', site: 'https://aistudio.google.com/apikey', note: '긴 문서 · 이미지' },
     { id: 'groq', name: 'Groq', key: 'groqKey', url: 'https://api.groq.com/openai/v1/chat/completions', model: 'openai/gpt-oss-120b', site: 'https://console.groq.com/keys', note: '빠른 텍스트' },
     { id: 'openrouter', name: 'OpenRouter', key: 'openrouterKey', url: 'https://openrouter.ai/api/v1/chat/completions', model: 'openrouter/free', site: 'https://openrouter.ai/settings/keys', note: '무료 모델 자동 선택' },
     { id: 'mistral', name: 'Mistral', key: 'mistralKey', url: 'https://api.mistral.ai/v1/chat/completions', model: 'mistral-small-latest', site: 'https://console.mistral.ai/api-keys', note: '한국어 · 문서 정리' },

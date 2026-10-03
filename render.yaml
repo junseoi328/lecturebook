@@ -1,0 +1,7 @@
+# Render 정적 사이트: site/를 dist/로 묶어 배포한다. 개발 서버(tools/dev.js)는 로컬 전용이라 올리지 않는다.
+services:
+  - type: web
+    name: lecturebook
+    runtime: static
+    buildCommand: node build.js
+    staticPublishPath: dist

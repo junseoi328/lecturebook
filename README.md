@@ -119,7 +119,7 @@ node tests/dev-server.test.js
 python tests/make_fixtures.py
 python tests/e2e.py
 ```
-Playwright가 설치된 환경에서는 `node tests/browser-smoke.js`와 `node tests/design-regression.js`로 설정·질문·모바일 화면을 점검할 수 있다.
+Playwright가 설치된 환경에서는 `node tests/browser-smoke.js`와 `node tests/design-regression.js`로 설정·질문·모바일 화면을 점검할 수 있다. `node tests/translate-smoke.js`는 가짜 AI로 번역 PPT 카드(올리기·번역·줄이기·내려받기)를 확인한다.
 `e2e.py`는 공개 페이지와 비슷하게 외부 접속, eval, 워커를 막은 조건에서 가짜 Claude 응답으로 전체 흐름(업로드 → 정리 → PDF → 시험 형식 → 족보 → 문제 → 채점 → 책 → 새로고침 뒤 유지 → 백업 → AI 없는 환경 → 모바일)을 확인한다. 별도로 무료 AI 팀 단위 테스트 16개를 실행한다.
 `perf.test.js`는 무거운 문서 도구가 초기 화면에서 제외되고 고성능 실행본이 250KB 예산 안에 있는지 확인한다. 실제 측정 기록은 `PERFORMANCE.md`에 있다.
 

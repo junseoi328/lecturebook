@@ -11,6 +11,8 @@
 - Figma: 이전 디자인 파일의 Page 1은 현재 비어 있다. Adobe Fonts 한글 추천 결과도 없어 코드와 시스템 글꼴을 기준본으로 유지 (`DESIGN.md`)
 - 미검증: 실제 외부 무료 모델 호출(키 없음), Safari·모바일 실기기, 큰 PDF 속도, 기존 Python e2e.py(실행 환경에 Playwright 모듈 없음)
 
+- 번역 PPT: 처음 화면의 "번역 PPT 만들기" 카드(`site/translate.js` + `site/app.js`의 translateCard). 영어 PPTX를 같은 디자인의 한국어 PPTX로 바꾸고, 넘치면 문장 줄이기 → 글자 축소(하한 70%). 가짜 AI로만 검증했고 실제 공급자 호출은 미검증. 실행본 약 230KB
+
 ## 데이터 (IndexedDB, 키-값)
 - courses: 과목 목록 / course:<id>: 과목(lectures, jokbos, exam 형식, exams 일정, reviewed 복습)
 - item:<id>: 강의(pages, summary) 또는 족보(pages, analysis)
