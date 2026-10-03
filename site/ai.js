@@ -248,7 +248,7 @@ ${JSON.stringify(compact)}`;
     { id: 'vision', name: '도표 판독', skill: '스캔·도표·수식이 있는 페이지 읽기', tasks: ['vision'], hint: /gemini|vision|vl/i },
     { id: 'reasoner', name: '개념 추론', skill: '인과관계와 어려운 개념 점검', tasks: ['summary', 'analysis'], hint: /gpt-oss-120b|deepseek|reason/i },
     { id: 'organizer', name: '구조 설계', skill: '강의 흐름을 시험 대비 목차로 재구성', tasks: ['summary'], hint: /qwen|nemotron/i },
-    { id: 'korean', name: '한국어 편집', skill: '자연스럽고 정확한 한국어 문장 정리', tasks: ['summary', 'grade'], hint: /qwen|gemma|exaone/i },
+    { id: 'korean', name: '한국어 편집', skill: '자연스럽고 정확한 한국어 문장 정리', tasks: ['summary', 'grade', 'translate'], hint: /qwen|gemma|exaone/i },
     { id: 'exam', name: '시험 포인트', skill: '정의·비교·공식에서 출제 지점 추출', tasks: ['summary', 'analysis'], hint: /gpt-oss|llama|mistral/i },
     { id: 'analyst', name: '족보 분석', skill: '반복 주제와 출제 패턴 분석', tasks: ['analysis'], hint: /deepseek|qwen|glm/i },
     { id: 'writer', name: '문제 출제', skill: '범위와 난이도에 맞는 연습 문제 생성', tasks: ['quiz'], hint: /nemotron|llama|qwen/i },

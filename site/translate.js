@@ -249,20 +249,465 @@
 
   // ---------- 2) AI 호출 ----------
   const RULES = `규칙
-- 문체: 제목·글머리표는 간결한 개조식/명사형, 문장은 "~한다"체.
-- 전공 용어는 통용되는 한국어 용어로 옮긴다. 원어 병기는 본문에서 처음 한 번만, 제목에는 하지 않는다.
-- 그림·도표 안의 짧은 라벨도 번역한다 (예: gate metal → 게이트 금속, depletion region → 공핍 영역).
 - _{…}는 아래첨자, ^{…}는 위첨자 표기다. 기호와 첨자는 글자 하나 바꾸지 말고 그대로 옮긴다 (예: V_{G}, E_{F}, x^{2}, φ_{ms}).
 - 수식, 기호, 단위, 코드, 변수명, 약어(MOS, BFS), 화학식, 사람 이름, URL은 그대로 둔다. $나 \\ 같은 LaTeX 기호를 새로 넣지 않는다.
 - 맨 앞의 글머리 기호와 번호(▪, ✓, •, -, 1. 등)는 그대로 둔다.
-- 번역할 필요가 없는 항목은 원문을 그대로 돌려준다.
-- 같은 용어는 전체에서 같은 번역어를 쓴다. 설명을 덧붙이지 않는다.
+- 번역할 필요가 없는 항목은 원문을 그대로 돌려준다. 설명이나 주석을 덧붙이지 않는다.
 - max는 그 항목이 차지할 수 있는 최대 폭이다. 폭 계산: 한글 1자=1, 영문·숫자 1자≈0.5, 공백≈0.3.
-  max를 넘을 것 같으면 뜻은 유지하고 표현을 줄인다(조사·군더더기 생략, 개조식, 원어 병기 생략, 더 짧은 동의어).
+  max를 넘을 것 같으면 뜻은 유지하고 표현을 줄인다(조사·군더더기 생략, 개조식, 더 짧은 동의어).
 출력: JSON 객체 하나만. 형식 {"items":[{"id":0,"ko":"..."}]}. 입력의 모든 id를 빠짐없이 포함한다.`;
 
-  const P_TRANSLATE = `너는 대학 강의자료 전문 번역가다. 아래 JSON 배열 각 항목의 en을 자연스러운 한국어로 번역해라. page는 문맥 파악용이다.\n\n${RULES}\n\n입력:\n`;
-  const P_SHORTEN = `아래 한국어 번역(ko)이 원문 자리에 들어가기엔 길다. 각 항목을 max 폭 이하로 줄여라. 원문(en)의 핵심 뜻은 반드시 남긴다.\n\n${RULES}\n\n입력:\n`;
+  // 전자공학·컴퓨터공학 강의자료를 한국 대학 강의자료처럼 읽히게 하는 문체 지침
+  const STYLE = `문체 (한국 대학의 전자공학·컴퓨터공학 강의자료처럼 쓴다)
+- 영어 어순을 따라가지 말고, 그 내용을 한국어 강의자료라면 어떻게 썼을지 생각해서 다시 쓴다. 뜻을 더하거나 빼지는 않는다.
+- 항목의 t가 "title"이면 명사형으로 끝나는 짧은 제목, "label"이면 그림·표에 붙는 짧은 명사구(예: 전하 없음, 전류 흐름), "text"면 본문이다.
+- 본문은 "~한다/~이다"체나 간결한 개조식으로 쓴다. 한 자료 안에서 "~합니다"체와 섞지 않는다. 원문이 조각 문장이면 번역도 조각 문장으로 둔다.
+- we, you, it, this 같은 대명사 주어는 옮기지 않는다. "그것은", "우리는", "당신은"을 쓰지 않는다.
+- 번역 투를 피한다: "~되어진다", "~에 의해 ~된다", "~하는 것이다", "~에 대한 ~의", "~을 가진다", "~의 ~의 ~" 같은 표현 대신 능동문과 짧은 조사로 쓴다.
+- 전공 용어는 아래 용어집과 한국어 교재에서 통용되는 말을 쓴다. 용어집에 있는 말은 반드시 그 번역어로 통일한다. 원어 병기는 하지 않는다.
+- 통용되는 한국어 용어가 없는 말(약어, 제품·기법 이름, cache·stack처럼 굳은 외래어)은 억지로 풀어 쓰지 말고 음차하거나 원어 그대로 둔다.
+- 기호 뒤의 조사는 기호를 소리 내어 읽었을 때에 맞추고 붙여 쓴다 (V_{G}가, E_{F}는, φ_{s}를, n이).
+- 화살표(→), 콜론(:), 괄호 구조는 원문 그대로 살린다. 세미콜론(;)은 쉼표나 마침표로 바꾼다.
+
+예시
+{"en":"Saw how the work-function difference bends the bands","t":"text"} → 일함수 차이로 밴드가 휘는 원리 확인
+{"en":"The oxide blocks current: the transferred charge stays on both sides","t":"text"} → 산화막이 전류를 막는다: 이동한 전하는 양쪽에 그대로 남는다
+{"en":"few carriers: induced charge can deplete or invert the surface","t":"text"} → 캐리어가 적음: 유도 전하로 표면을 공핍·반전시킬 수 있음
+{"en":"Threshold voltage V_{T}: the gate voltage at which φ_{s} = 2φ_{fp}","t":"text"} → 문턱 전압 V_{T}: φ_{s} = 2φ_{fp}가 되는 게이트 전압
+{"en":"Where does this potential difference drop?","t":"text"} → 이 전위차는 어디에 걸리는가?
+{"en":"If the quantum is too small, context-switch overhead dominates","t":"text"} → 할당량이 너무 작으면 문맥 교환 오버헤드가 대부분을 차지한다
+{"en":"We can solve this recurrence with the master theorem","t":"text"} → 이 점화식은 마스터 정리로 풀 수 있다
+{"en":"Why a Semiconductor? MIM vs. MOS","t":"title"} → 왜 반도체인가? MIM과 MOS 비교
+{"en":"Putting It Together","t":"title"} → 종합 정리
+{"en":"no charge","t":"label"} → 전하 없음
+{"en":"current flows","t":"label"} → 전류 흐름`;
+
+  // 용어집: "영어|한국어". 묶음에 실제로 나온 말만 골라 프롬프트에 넣는다. 뜻이 갈리는 말은 맥락을 적는다.
+  const GLOSSARY = `
+semiconductor|반도체
+intrinsic|진성
+extrinsic|외인성
+doping|도핑
+dopant|도펀트
+donor|도너
+acceptor|억셉터
+carrier|캐리어 (반도체) / 반송파 (통신)
+majority carrier|다수 캐리어
+minority carrier|소수 캐리어
+hole|정공
+mobility|이동도
+drift|드리프트
+diffusion|확산
+diffusion length|확산 길이
+recombination|재결합
+lifetime|수명
+energy band|에너지 밴드
+band gap|밴드갭
+bandgap|밴드갭
+conduction band|전도대
+valence band|가전자대
+fermi level|페르미 준위
+quasi fermi level|준페르미 준위
+vacuum level|진공 준위
+work function|일함수
+electron affinity|전자 친화도
+band bending|밴드 휨
+band diagram|밴드 다이어그램
+flat band|플랫밴드
+flat band voltage|플랫밴드 전압
+depletion|공핍
+depleted|공핍된
+depletion region|공핍 영역
+depletion width|공핍 폭
+depletion approximation|공핍 근사
+accumulation|축적
+inversion|반전
+strong inversion|강반전
+weak inversion|약반전
+inversion layer|반전층
+threshold voltage|문턱 전압
+surface potential|표면 전위
+oxide|산화막
+gate|게이트
+body|바디
+substrate|기판
+bulk|벌크
+channel|채널
+source|소스
+drain|드레인
+junction|접합
+built in potential|내부 전위
+forward bias|순방향 바이어스
+reverse bias|역방향 바이어스
+bias|바이어스 (회로·소자) / 편향 (기계 학습)
+breakdown|항복
+avalanche breakdown|애벌랜치 항복
+space charge|공간 전하
+charge density|전하 밀도
+electric field|전기장
+potential|전위
+electrostatics|정전기학
+poisson|푸아송
+capacitance|정전용량
+capacitor|커패시터
+schottky barrier|쇼트키 장벽
+schottky diode|쇼트키 다이오드
+ohmic contact|옴성 접촉
+rectifying|정류성
+contact resistance|접촉 저항
+contact potential|접촉 전위
+thermionic emission|열전자 방출
+tunneling|터널링
+image charge|영상 전하
+barrier lowering|장벽 저하
+interface|계면 (소자) / 인터페이스 (소프트웨어)
+surface state|표면 상태
+interface trap|계면 트랩
+ionized|이온화된
+insulator|절연체
+dielectric|유전체
+permittivity|유전율
+thermal equilibrium|열평형
+density of states|상태 밀도
+effective mass|유효 질량
+saturation|포화
+saturation current|포화 전류
+subthreshold|문턱전압 이하
+transconductance|트랜스컨덕턴스
+leakage current|누설 전류
+short channel effect|단채널 효과
+channel length modulation|채널 길이 변조
+pinch off|핀치오프
+body effect|바디 효과
+emitter|이미터
+collector|컬렉터
+current gain|전류 이득
+wafer|웨이퍼
+lithography|리소그래피
+etching|식각
+deposition|증착
+ion implantation|이온 주입
+annealing|어닐링
+voltage|전압
+current|전류
+resistance|저항
+resistor|저항
+inductor|인덕터
+inductance|인덕턴스
+impedance|임피던스
+admittance|어드미턴스
+wire|도선
+ground|접지
+short circuit|단락
+open circuit|개방
+voltage divider|전압 분배기
+voltage drop|전압 강하
+thevenin equivalent|테브난 등가 회로
+norton equivalent|노턴 등가 회로
+superposition|중첩
+operational amplifier|연산 증폭기
+op amp|연산 증폭기
+amplifier|증폭기
+gain|이득
+feedback|피드백
+small signal|소신호
+large signal|대신호
+frequency response|주파수 응답
+bandwidth|대역폭
+cutoff frequency|차단 주파수
+transfer function|전달 함수
+pole|극점
+zero|영점 (전달 함수)
+stability|안정도
+phase margin|위상 여유
+gain margin|이득 여유
+steady state|정상 상태
+transient|과도
+time constant|시정수
+resonance|공진
+low pass|저역 통과
+high pass|고역 통과
+band pass|대역 통과
+noise|잡음
+noise margin|잡음 여유
+differential|차동
+common mode|공통 모드
+current mirror|전류 미러
+load|부하
+rectifier|정류기
+inverter|인버터
+power dissipation|전력 소모
+duty cycle|듀티 사이클
+rise time|상승 시간
+linear time invariant|선형 시불변
+convolution|컨볼루션 (신호 처리) / 합성곱 (딥러닝)
+impulse response|임펄스 응답
+step response|계단 응답
+fourier transform|푸리에 변환
+laplace transform|라플라스 변환
+sampling|샘플링
+aliasing|에일리어싱
+quantization|양자화
+modulation|변조
+demodulation|복조
+power spectral density|전력 스펙트럼 밀도
+signal to noise ratio|신호 대 잡음비
+channel capacity|채널 용량
+bit error rate|비트 오류율
+electromagnetic wave|전자기파
+transmission line|전송 선로
+reflection coefficient|반사 계수
+characteristic impedance|특성 임피던스
+waveguide|도파관
+magnetic field|자기장
+boundary condition|경계 조건
+logic gate|논리 게이트
+flip flop|플립플롭
+latch|래치
+combinational|조합
+sequential|순차
+finite state machine|유한 상태 기계
+multiplexer|멀티플렉서
+adder|가산기
+register|레지스터
+clock|클록
+setup time|셋업 시간
+hold time|홀드 시간
+propagation delay|전파 지연
+pipeline|파이프라인
+pipelining|파이프라이닝
+data hazard|데이터 해저드
+control hazard|제어 해저드
+forwarding|포워딩
+stall|스톨
+branch prediction|분기 예측
+out of order execution|비순차 실행
+speculative execution|추측 실행
+cache|캐시
+cache miss|캐시 미스
+hit rate|적중률
+miss penalty|미스 페널티
+memory hierarchy|메모리 계층 구조
+direct mapped|직접 사상
+set associative|집합 연관
+virtual memory|가상 메모리
+page table|페이지 테이블
+instruction|명령어
+instruction set|명령어 집합
+datapath|데이터패스
+control unit|제어 장치
+interrupt|인터럽트
+exception|예외
+opcode|연산 코드
+operand|피연산자
+program counter|프로그램 카운터
+two's complement|2의 보수
+floating point|부동소수점
+operating system|운영체제
+process|프로세스 (운영체제) / 공정 (반도체 제조)
+thread|스레드
+scheduling|스케줄링
+scheduler|스케줄러
+context switch|문맥 교환
+preemptive|선점형
+non preemptive|비선점형
+starvation|기아 상태
+deadlock|교착 상태
+mutual exclusion|상호 배제
+critical section|임계 구역
+semaphore|세마포어
+mutex|뮤텍스
+race condition|경쟁 상태
+synchronization|동기화
+condition variable|조건 변수
+busy waiting|바쁜 대기
+priority inversion|우선순위 역전
+concurrency|병행성
+parallelism|병렬성
+atomic|원자적
+paging|페이징
+segmentation|세그먼테이션
+page fault|페이지 폴트
+page replacement|페이지 교체
+thrashing|스래싱
+fragmentation|단편화
+locality|지역성
+address space|주소 공간
+virtual address|가상 주소
+physical address|물리 주소
+memory allocation|메모리 할당
+file system|파일 시스템
+system call|시스템 콜
+kernel|커널
+user mode|사용자 모드
+ready queue|준비 큐
+time quantum|시간 할당량
+turnaround time|반환 시간
+waiting time|대기 시간
+response time|응답 시간
+throughput|처리량
+convoy effect|호위 효과
+round robin|라운드 로빈
+first come first served|선입 선처리
+shortest job first|최단 작업 우선
+algorithm|알고리즘
+data structure|자료구조
+time complexity|시간 복잡도
+space complexity|공간 복잡도
+asymptotic|점근적
+upper bound|상한
+lower bound|하한
+array|배열
+linked list|연결 리스트
+priority queue|우선순위 큐
+queue|큐
+stack|스택
+heap|힙
+hash table|해시 테이블
+collision|충돌
+load factor|적재율
+binary search tree|이진 탐색 트리
+binary search|이진 탐색
+balanced tree|균형 트리
+traversal|순회
+vertex|정점
+vertices|정점
+edge|간선 (그래프) / 에지 (신호)
+directed graph|방향 그래프
+undirected graph|무방향 그래프
+adjacency list|인접 리스트
+adjacency matrix|인접 행렬
+connected component|연결 요소
+shortest path|최단 경로
+spanning tree|신장 트리
+minimum spanning tree|최소 신장 트리
+topological sort|위상 정렬
+depth first search|깊이 우선 탐색
+breadth first search|너비 우선 탐색
+dynamic programming|동적 계획법
+memoization|메모이제이션
+optimal substructure|최적 부분 구조
+greedy|그리디
+divide and conquer|분할 정복
+recursion|재귀
+recurrence|점화식
+base case|기저 사례
+backtracking|백트래킹
+sorting|정렬
+merge sort|병합 정렬
+quicksort|퀵 정렬
+stable sort|안정 정렬
+in place|제자리
+worst case|최악의 경우
+average case|평균적인 경우
+amortized|분할 상환
+loop invariant|루프 불변식
+invariant|불변식
+polynomial time|다항 시간
+np complete|NP-완전
+reduction|환원
+pseudocode|의사코드
+brute force|완전 탐색
+protocol|프로토콜
+packet|패킷
+datagram|데이터그램
+routing|라우팅
+forwarding table|포워딩 테이블
+congestion control|혼잡 제어
+flow control|흐름 제어
+congestion window|혼잡 윈도
+sliding window|슬라이딩 윈도
+acknowledgment|확인 응답
+retransmission|재전송
+handshake|핸드셰이크
+latency|지연 시간
+packet loss|패킷 손실
+checksum|체크섬
+transport layer|전송 계층
+network layer|네트워크 계층
+link layer|링크 계층
+application layer|응용 계층
+end to end|종단 간
+multiplexing|다중화
+encapsulation|캡슐화
+payload|페이로드
+transaction|트랜잭션
+query|질의
+schema|스키마
+normalization|정규화
+primary key|기본 키
+foreign key|외래 키
+isolation level|격리 수준
+concurrency control|동시성 제어
+serializability|직렬 가능성
+functional dependency|함수 종속
+compiler|컴파일러
+parser|파서
+syntax|구문
+semantics|의미론
+variable|변수
+pointer|포인터
+reference|참조
+inheritance|상속
+polymorphism|다형성
+garbage collection|가비지 컬렉션
+machine learning|기계 학습
+neural network|신경망
+deep learning|딥러닝
+supervised learning|지도 학습
+unsupervised learning|비지도 학습
+reinforcement learning|강화 학습
+training|학습
+inference|추론
+loss function|손실 함수
+gradient descent|경사 하강법
+stochastic gradient descent|확률적 경사 하강법
+backpropagation|역전파
+overfitting|과적합
+regularization|정규화 (규제)
+generalization|일반화
+learning rate|학습률
+activation function|활성화 함수
+weight|가중치
+hidden layer|은닉층
+fully connected|완전 연결
+batch normalization|배치 정규화
+hyperparameter|하이퍼파라미터
+classification|분류
+regression|회귀
+feature|특징
+clustering|군집화
+dimensionality reduction|차원 축소
+cross entropy|교차 엔트로피
+likelihood|가능도
+variance|분산
+eigenvalue|고윳값
+eigenvector|고유벡터`.trim().split("\n").map((l) => l.split("|"));
+
+  /** 이 묶음의 영어에 실제로 나온 용어만 고른다 (긴 말 우선, 최대 60개) */
+  function glossaryFor(items) {
+    const text = " " + items.map((it) => plain(it.en)).join(" ").toLowerCase().replace(/[-‐–]/g, " ") + " ";
+    const esc = (t) => t.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+    return GLOSSARY.filter(([en]) => new RegExp("[^a-z]" + esc(en) + "(?:s|es|ed|ing)?[^a-z]").test(text))
+      .sort((a, b) => b[0].length - a[0].length).slice(0, 60)
+      .map(([en, ko]) => `${en} → ${ko}`).join("\n");
+  }
+
+  const HEAD_TRANSLATE = `너는 전자공학·컴퓨터공학을 전공한 강의자료 번역가다. 아래 JSON 배열 각 항목의 en을, 한국 대학의 교수가 처음부터 한국어로 만든 강의자료처럼 자연스럽게 옮겨라. page는 문맥 파악용이고, 같은 page의 항목은 한 쪽에 함께 있는 내용이다.`;
+  const HEAD_SHORTEN = `아래 한국어 번역(ko)이 원문 자리에 들어가기엔 길다. 각 항목을 max 폭 이하로 줄여라. 원문(en)의 핵심 뜻과 전공 용어는 반드시 남기고, 자연스러운 한국어를 유지한다.`;
+
+  /** 프롬프트 조립. 마지막은 항상 "입력:\n" + JSON */
+  function buildPrompt(shorten, items, ctx) {
+    const terms = glossaryFor(items);
+    return [
+      shorten ? HEAD_SHORTEN : HEAD_TRANSLATE,
+      RULES,
+      STYLE,
+      ctx.title ? `자료 제목: ${ctx.title}` : "",
+      terms ? `용어집 (왼쪽 말이 나오면 오른쪽 번역어로 통일)\n${terms}` : "",
+      ctx.memo ? `앞에서 이렇게 옮겼다 (같은 말은 똑같이 옮긴다)\n${ctx.memo}` : "",
+    ].filter(Boolean).join("\n\n") + "\n\n입력:\n" + JSON.stringify(items);
+  }
 
   function parseJsonArray(text) {
     const t = String(text).replace(/```(?:json)?/g, "");
@@ -286,7 +731,7 @@
    * 묶음으로 나눠 묻는다. 요청이 실패하면 기다렸다가 다시 보내고(한도는 대개 1분 안에 풀린다), 그래도 안 되면 묶음을 반으로 쪼갠다.
    * 작은 묶음마저 끝까지 실패하면 한도가 바닥난 것으로 보고 멈춘다 → { out, stopped: true }. 받은 것은 버리지 않는다.
    */
-  async function askInBatches(opt, prompt, items, phase) {
+  async function askInBatches(opt, makePrompt, items, phase) {
     const out = new Map(), progress = opt.onProgress || (() => {});
     const batches = [];
     let cur = [], chars = 0, done = 0;
@@ -307,7 +752,7 @@
         progress({ phase, done, total: items.length });
         lastCall = Date.now();
         try {
-          for (const x of parseJsonArray(await opt.callAI(prompt + JSON.stringify(pending)))) {
+          for (const x of parseJsonArray(await opt.callAI(makePrompt(pending)))) {
             if (!x || typeof x.ko !== "string" || !x.ko.trim()) continue;
             const it = pending.find((p) => p.id === Number(x.id));
             if (!it) continue;
@@ -318,6 +763,7 @@
             // 긴 영어 문장을 그대로 돌려준 것은 한 번 더 물어본다 (두 번째에도 같으면 받아들인다)
             if (phase === "translate" && ko === it.en && (it.en.match(/[A-Za-z]{3,}/g) || []).length >= 4 && !echoed.has(it.id)) { echoed.add(it.id); continue; }
             out.set(it.id, ko);
+            if (opt.onItem) opt.onItem(it.id, ko);
           }
           failed = false;
         } catch (e) {
@@ -477,20 +923,33 @@
         const seg = { id: segs.length, page: n, en: block.text, ko: null, max: budgetOf(block), block };
         segs.push(seg); mine.push(seg);
       }
+      // 항목 종류: 그 쪽에서 유난히 큰 글자는 제목, 서너 낱말짜리 한 줄은 라벨, 나머지는 본문
+      const sizes = mine.map((s) => s.block.size).sort((a, b) => a - b), median = sizes[sizes.length >> 1] || 0;
+      for (const s of mine) {
+        const words = plain(s.en).trim().split(/\s+/).length;
+        s.t = s.block.size >= 1.25 * median ? "title" : s.block.n === 1 && words <= 3 ? "label" : "text";
+      }
       pages.push({ page, vp, segs: mine });
       progress({ phase: "read", done: n, total: pdf.numPages });
     }
 
     const state = { shortened: new Set(), stopped: false };
-    const toItem = (s) => ({ id: s.id, page: s.page, en: s.en, max: s.max });
+    const toItem = (s) => ({ id: s.id, page: s.page, t: s.t, en: s.en, max: s.max });
+    const docTitle = (segs.find((s) => s.t === "title") || segs[0] || { en: "" }).en;
+    // 앞에서 옮긴 짧은 말(제목·라벨·용어) 몇 개를 다음 묶음에 보여 줘서 같은 말을 똑같이 옮기게 한다
+    const context = () => ({
+      title: docTitle,
+      memo: segs.filter((s) => s.ko && s.ko !== s.en && plain(s.en).split(/\s+/).length <= 6).slice(-25).map((s) => `${s.en} → ${s.ko}`).join("\n"),
+    });
 
     /** 아직 번역 안 된 문단만 번역한다. 한도에 걸려 멈췄으면 다시 부르면 이어서 한다. */
     async function translate(o) {
       o = o || {};
       if (typeof o.callAI !== "function") throw new Error("callAI 함수가 필요해요.");
       const todo = segs.filter((s) => !s.ko);
-      const first = await askInBatches(o, P_TRANSLATE, todo.map(toItem), "translate");
-      for (const s of todo) s.ko = first.out.get(s.id) || null;
+      // 받는 대로 바로 채워 넣는다: 다음 묶음의 "앞에서 이렇게 옮겼다"에 쓰인다
+      const byId = new Map(todo.map((s) => [s.id, s]));
+      const first = await askInBatches({ ...o, onItem: (id, ko) => { byId.get(id).ko = ko; } }, (items) => buildPrompt(false, items, context()), todo.map(toItem), "translate");
       state.stopped = first.stopped;
       if (todo.length && !first.out.size) throw new Error("AI가 번역 결과를 돌려주지 않았어요. AI 설정과 사용 한도를 확인해 주세요.");
 
@@ -498,7 +957,7 @@
       for (let round = 0; round < CFG.shortenRounds; round++) {
         const over = segs.filter((s) => s.ko && textWidth(plain(s.ko)) > s.max);
         if (!over.length) break;
-        const fixed = await askInBatches(o, P_SHORTEN, over.map((s) => ({ ...toItem(s), ko: s.ko })), "shorten");
+        const fixed = await askInBatches(o, (items) => buildPrompt(true, items, { title: docTitle }), over.map((s) => ({ ...toItem(s), ko: s.ko })), "shorten");
         for (const s of over) {
           const ko = fixed.out.get(s.id);
           if (ko && textWidth(plain(ko)) < textWidth(plain(s.ko))) { s.ko = ko; state.shortened.add(s.id); }   // 더 짧아졌을 때만 채택
@@ -558,5 +1017,5 @@
     return job.render(opt);
   }
 
-  return { open, translatePdf, textWidth, toLines, toBlocks, translatable, runsOf, config: CFG };
+  return { open, translatePdf, textWidth, toLines, toBlocks, translatable, runsOf, glossaryFor, buildPrompt, config: CFG };
 });

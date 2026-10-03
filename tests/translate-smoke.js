@@ -18,6 +18,7 @@ const { chromium } = require('playwright');
     sample.json = async prompt => {
       if (window.__failOnce) { window.__failOnce = false; throw { code: 'rate_limited' }; }
       const items = JSON.parse(prompt.slice(prompt.lastIndexOf('입력:\n') + 4));
+      (window.__prompts = window.__prompts || []).push(prompt.slice(0, prompt.lastIndexOf('입력:\n')));
       const shorten = prompt.includes('들어가기엔 길다');
       (window.__calls = window.__calls || []).push(shorten ? 'shorten' : 'translate');
       (window.__en = window.__en || []).push(...(shorten ? [] : items.map(x => x.en)));
@@ -64,6 +65,15 @@ const { chromium } = require('playwright');
     assert(!math.some(t => /E_\{Fm\}|t_\{ox\} = 30|^p-Si$/.test(t)), '수식·단위·기호만 있는 줄은 번역 대상이 아니다');
     assert(math.includes('huge electron density: cannot be depleted') && math.includes('x_{d}: depletion width'), '그림 라벨도 번역한다');
     assert.strictEqual(await page.evaluate(() => window.__failOnce), false, '실패한 요청을 다시 보냈다');
+    // 묶음을 작게 해서 다시 돌린다: 둘째 묶음부터는 앞에서 옮긴 말을 보여 주고, 묶음에 나온 전공 용어를 용어집으로 준다
+    await page.evaluate(() => { window.__prompts = []; PdfTranslate.config.batchItems = 6; });
+    await page.getByLabel('번역할 영어 PDF').setInputFiles(path.join(__dirname, 'fixtures', 'en-math.pdf'));
+    await run.click();
+    await page.getByRole('button', { name: '한국어 PDF 받기' }).waitFor({ timeout: 60000 });
+    const prompts = await page.evaluate(() => window.__prompts);
+    assert(prompts.length >= 3 && prompts.every(p => p.includes('전자공학·컴퓨터공학')), '문체 지침이 든 프롬프트를 묶음마다 보낸다');
+    assert(prompts.some(p => p.includes('depletion → 공핍')) && prompts.some(p => p.includes('oxide → 산화막')), '용어집을 붙인다');
+    assert(!prompts[0].includes('앞에서 이렇게 옮겼다') && prompts.slice(1).some(p => p.includes('앞에서 이렇게 옮겼다')), '앞선 번역을 다음 묶음에 넘긴다');
   }
   assert.strictEqual(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth), true);
   assert.deepStrictEqual(errors, []);

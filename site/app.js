@@ -576,7 +576,7 @@
       let friendly = '';
       const opt = {
         shorten: shorten.checked, signal: ctl.signal,
-        callAI: p => AI.json(p, { task: 'summary', signal: ctl.signal }).then(JSON.stringify, e => { friendly = (e && e.friendly) || ''; throw e; }),
+        callAI: p => AI.json(p, { task: 'translate', signal: ctl.signal }).then(JSON.stringify, e => { friendly = (e && e.friendly) || ''; throw e; }),
         onProgress: p => {
           if (p.phase === 'wait') return say(`AI 사용 한도를 기다리는 중 ${p.seconds}초 (${friendly || '요청이 거절됐어요'})`);
           const [label, base, span] = PHASE[p.phase]; fill.style.width = base + span * (p.total ? p.done / p.total : 0) + '%'; say(p.total > 1 ? `${label} ${p.done}/${p.total}` : label);

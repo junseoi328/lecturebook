@@ -116,6 +116,7 @@ node tests/providers.test.js
 node tests/study.test.js
 node tests/perf.test.js
 node tests/dev-server.test.js
+node tests/translate.test.js
 python tests/make_fixtures.py
 python tests/e2e.py
 ```
